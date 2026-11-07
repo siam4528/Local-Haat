@@ -1110,6 +1110,7 @@
             ${o.paid ? `<p class="good">${PAY_DONE[o.paid.method]}</p><p class="meta">ট্রানজেকশন আইডি: <span translate="no">${esc(o.paid.trx)}</span></p>` : `<p class="note">${o.pay === 'cod' ? 'জিনিস হাতে পেয়ে টাকা দিন।' : o.pay === 'bus' ? 'বাসে উঠে সুপারভাইজারকে ভাড়া দিন।' : o.pay === 'counter' ? 'কাউন্টারে নগদ দেওয়া হয়েছে।' : 'দোকানে টাকা দিন।'}</p>`}
             ${shop ? `<div class="contact"><a class="btn ghost" href="tel:${esc(shop.phone)}">📞 দোকানে কল</a><a class="btn ghost" href="#/chat/${shop.id}">💬 চ্যাট</a></div>` : ''}
           </section>
+          ${mine && Store.canReorder(o) ? `<button type="button" class="btn block re-again" data-action="reorder" data-code="${o.code}">🔁 আবার অর্ডার করুন</button>` : ''}
           ${mine ? Rate.panel(o) : ''}
           ${mine ? Care.refundPanel(o) : ''}
           ${mine ? `<a class="more" href="#/support/customer/new/${o.code}">🛟 সমস্যা হলে সাপোর্টে জানান</a>` : ''}
@@ -1127,8 +1128,33 @@
       return `<div class="empty big"><span aria-hidden="true">📦</span><h1>এখনো কোনো অর্ডার নেই</h1><p>অর্ডার দিলে এখানে নম্বরসহ দেখা যাবে।</p><a class="btn" href="#/">দোকান দেখুন</a></div>`;
     }
     return `<h1 class="page-h">আপনার অর্ডার</h1><div class="stack">
-      ${mine.map((o) => `<a class="panel order" href="#/track/${o.code}"><span><b>${ud(o.shopName)}</b><small><span translate="no">${bn(o.code)}</span> · ${tk(o.total)}</small></span><span class="order-tags"><span class="tag ${Store.isFinal(o) ? '' : 'ok'}">${Store.label(o, o.status)}</span>${Rate.unrated(o) ? '<span class="tag rate-ask">⭐ রেটিং দিন</span>' : ''}</span></a>`).join('')}
+      ${mine.map((o) => `<div class="order-wrap"><a class="panel order" href="#/track/${o.code}"><span><b>${ud(o.shopName)}</b><small><span translate="no">${bn(o.code)}</span> · ${tk(o.total)}</small></span><span class="order-tags"><span class="tag ${Store.isFinal(o) ? '' : 'ok'}">${Store.label(o, o.status)}</span>${Rate.unrated(o) ? '<span class="tag rate-ask">⭐ রেটিং দিন</span>' : ''}</span></a>${Store.canReorder(o) ? `<button type="button" class="btn ghost sm re-btn" data-action="reorder" data-code="${o.code}">🔁 আবার অর্ডার</button>` : ''}</div>`).join('')}
     </div>`;
+  }
+  /* ---------- order again ---------- */
+  const REORDER_STATE = {
+    gone: '<p class="warn">দোকানটি এখন লোকালহাটে নেই, তাই আবার অর্ডার করা যাবে না।</p>',
+    off: '<p class="warn">দোকান এখন অর্ডার নিচ্ছে না। পরে আবার চেষ্টা করুন।</p>',
+    later: '<p class="note">🕒 দোকান এখন বন্ধ। চেকআউটে খোলার সময়ের মধ্যে একটি সময় দিন।</p>'
+  };
+  function reorderSheet(code) {
+    let plan;
+    try { plan = Store.reorderPlan(code); } catch (ex) { toast(ex.message); return; }
+    const can = plan.lines.some((l) => l.ok);
+    openSheet(`<h2 id="sheet-h">🔁 আবার অর্ডার করুন</h2>
+      <p class="meta">${ud(plan.order.shopName)} · <span>এখনকার দামে কার্টে যাবে</span></p>
+      ${REORDER_STATE[plan.state] || ''}
+      <form id="reorder" data-code="${code}" novalidate>
+        <ul class="re-list">${plan.lines.map((l) => `<li class="re-row ${l.ok ? '' : 'off'}">
+          <label class="re-pick"><input type="checkbox" data-re="${esc(l.itemId)}" ${l.ok ? 'checked' : 'disabled'}><span>${l.icon || ''} <b>${ud(l.name)}</b>${l.unit ? `<small>${ud(l.unit)}</small>` : ''}</span></label>
+          ${l.ok ? `<span class="re-qty"><button type="button" data-action="re-step" data-id="${esc(l.itemId)}" data-by="-1" aria-label="একটি কমান">−</button><input type="number" id="re-q-${esc(l.itemId)}" inputmode="numeric" min="1" max="99" value="${l.qty}" aria-label="কয়টি"><button type="button" data-action="re-step" data-id="${esc(l.itemId)}" data-by="1" aria-label="একটি বাড়ান">+</button></span>
+            <span class="re-price"><b>${l.price ? tk(l.price) : 'দাম পরে'}</b>${l.price !== l.was && l.was ? `<small><span>আগের দাম</span> ${tk(l.was)}</small>` : ''}</span>`
+          : `<span class="tag bad">${l.why || 'এখন নেই'}</span>`}
+        </li>`).join('')}</ul>
+        <small class="err" id="re-err" role="alert"></small>
+        ${can ? '<button type="submit" class="btn block sheet-go">🛍️ কার্টে দিন</button>' : ''}
+      </form>
+      <button type="button" class="link" data-action="close-sheet">${can ? 'না, থাক' : 'বন্ধ করুন'}</button>`);
   }
   function pageMissing() {
     return `<div class="empty big"><span aria-hidden="true">🧭</span><h1>পাতাটি পাওয়া যায়নি</h1><a class="btn" href="#/">হোমে ফিরুন</a></div>`;
@@ -1362,6 +1388,12 @@
         try { goToPlace(Store.addAreaPlace(d.zila, d.area).id); } catch (ex) { toast(ex.message); }
         break;
       case 'pick-place': goToPlace(d.id, d.keepq); break;
+      case 'reorder': reorderSheet(d.code); break;
+      case 're-step': {
+        const box = $('re-q-' + d.id);
+        if (box) box.value = Math.min(99, Math.max(1, (Number(box.value) || 1) + Number(d.by)));
+        break;
+      }
       case 'fav': {
         if (S.viewAs) { toast('দেখার মোডে প্রিয় দোকানে রাখা যায় না'); break; }
         // without a login: log in first, then come back here
@@ -1535,6 +1567,23 @@
       e.target.blur();
       window.scrollTo(0, 0);
     }
+  });
+  // the chosen lines go into the cart, added to what is already there for that shop
+  document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'reorder') return;
+    e.preventDefault();
+    let plan;
+    try { plan = Store.reorderPlan(e.target.dataset.code); } catch (ex) { toast(ex.message); closeSheet(); return; }
+    const pick = plan.lines.filter((l) => l.ok && $('re-q-' + l.itemId) && e.target.querySelector(`[data-re="${CSS.escape(l.itemId)}"]`).checked)
+      .map((l) => [l.itemId, Math.min(99, Math.max(1, Math.round(Number(String($('re-q-' + l.itemId).value).replace(/[০-৯]/g, (c) => DIGITS.indexOf(c))) || 1)))]);
+    if (!pick.length) { $('re-err').textContent = 'অন্তত একটি পণ্য বেছে নিন'; return; }
+    const groupsOf = cart().groups;
+    if (!groupsOf[plan.shop.id]) groupsOf[plan.shop.id] = { lines: {}, place: D().place, mode: plan.order.mode === 'pickup' ? 'pickup' : 'delivery' };
+    pick.forEach(([id, q]) => { groupsOf[plan.shop.id].lines[id] = Math.min(99, (groupsOf[plan.shop.id].lines[id] || 0) + q); });
+    Store.save();
+    closeSheet();
+    toast('কার্টে যোগ হয়েছে');
+    location.hash = '#/cart';
   });
   document.addEventListener('submit', (e) => {
     if (e.target.id !== 'checkout') return;

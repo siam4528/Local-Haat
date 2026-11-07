@@ -1730,6 +1730,21 @@ window.LHStore = (function () {
   }
   /* ---------- ratings: only a customer's own finished order can rate, once ---------- */
   const isFinished = (o) => o.status === 'delivered' || o.status === 'completed';
+  // An earlier order to order again: only a finished shop order (not a booking or a ticket). Each line at today's price,
+  // or why it cannot come: gone from the shop, out of stock. The shop may not be taking orders, or only for later.
+  const canReorder = (o) => isFinished(o) && !o.book && o.mode !== 'service';
+  function reorderPlan(code) {
+    const o = data.orders.find((x) => x.code === code) || fail('অর্ডার পাওয়া যায়নি');
+    if (!canReorder(o)) fail('এই অর্ডার আবার করা যায় না');
+    const shop = shopById(o.shopId);
+    const state = !shop || !shopLive(shop) ? 'gone' : !canBook(shop) ? 'off' : openNow(shop) ? 'open' : 'later';
+    const lines = o.lines.map((l) => {
+      const it = shop && shop.items.find((x) => x.id === l.itemId);
+      const why = !it ? 'এখন নেই' : !it.available ? 'স্টক নেই' : it.book ? 'বুকিং করতে হবে' : '';
+      return { itemId: l.itemId, name: it ? it.name : l.name, unit: it ? it.unit : l.unit, icon: it ? it.icon : l.icon, qty: l.qty, was: l.price, price: it ? it.price : l.price, ok: !why && state !== 'gone' && state !== 'off', why };
+    });
+    return { order: o, shop, state, lines };
+  }
   const ratingOf = (code, about) => data.ratings.find((r) => r.orderCode === code && r.about === about) || null;
   const ratingsOf = (about, targetId, all) => data.ratings.filter((r) => r.about === about && r.targetId === targetId && (all || !r.hidden)).sort((a, b) => b.at.localeCompare(a.at));
   function ratingSummary(about, targetId) {
@@ -2419,6 +2434,7 @@ window.LHStore = (function () {
     setShopVerified, suspendShop, unsuspendShop, setShopArea, setRiderArea, riders, riderBlock, blockRider, unblockRider, approveRider, assignRider, teamDeliver, fillWaiting, riderNotes, riderNoteDone, riderNotesSeen, unreadIn, unreadTotal,
     placeOrders, accept, pack, shopComplete, riderPickup, riderDecline, riderDeliver, cancel,
     saveItem, deleteItem, setShopImage,
+    canReorder, reorderPlan,
     session(role) { return data.accounts.find((a) => a.id === data.sessions[role]) || null; },
     setSession(role, acc) { if (acc) data.sessions[role] = acc.id; else delete data.sessions[role]; save(); }
   };

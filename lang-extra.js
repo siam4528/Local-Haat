@@ -1431,5 +1431,18 @@ Object.assign(window.LH_LANG.en, {
   'দেখার মোডে প্রিয় দোকানে রাখা যায় না': "Favourites cannot be added while only viewing",
   'প্রিয় দোকানে রাখতে লগইন করুন': "Log in to keep favourite shops",
   'প্রিয় দোকানে রাখা হয়েছে': "Added to favourites",
-  'প্রিয় থেকে সরানো হয়েছে': "Removed from favourites"
+  'প্রিয় থেকে সরানো হয়েছে': "Removed from favourites",
+  /* Part 4: order again */
+  '🔁 আবার অর্ডার করুন': "🔁 Order again",
+  '🔁 আবার অর্ডার': "🔁 Order again",
+  'এখনকার দামে কার্টে যাবে': "goes to the cart at today's prices",
+  'দোকানটি এখন লোকালহাটে নেই, তাই আবার অর্ডার করা যাবে না।': "This shop is no longer on LocalHaat, so it cannot be ordered again.",
+  'দোকান এখন অর্ডার নিচ্ছে না। পরে আবার চেষ্টা করুন।': "The shop is not taking orders now. Try again later.",
+  '🕒 দোকান এখন বন্ধ। চেকআউটে খোলার সময়ের মধ্যে একটি সময় দিন।': "🕒 The shop is closed now. At checkout, pick a time within its hours.",
+  'এখন নেই': "Not available now",
+  'বুকিং করতে হবে': "Needs a booking",
+  'আগের দাম': "Was",
+  '🛍️ কার্টে দিন': "🛍️ Add to cart",
+  'অন্তত একটি পণ্য বেছে নিন': "Choose at least one item",
+  'এই অর্ডার আবার করা যায় না': "This order cannot be ordered again"
 });

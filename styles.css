@@ -1229,3 +1229,21 @@ body[data-page="map"] .top-in > .search { display: none; }
 .fav-pill { flex: none; margin-top: 2px; }
 .fav-pill.on { color: #d6224a; border-color: #d6224a; }
 .favs-row .best-txt .open-line { font-size: 12.5px; }
+
+/* Part 4: order again */
+.re-again { margin-top: 2px; }
+.order-wrap { display: grid; gap: 6px; }
+.re-btn { justify-self: end; min-height: 38px; }
+.re-list { margin: 10px 0 6px; padding: 0; list-style: none; }
+.re-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.re-row.off { opacity: .75; }
+.re-pick { display: flex; align-items: center; gap: 9px; grid-column: 1 / -1; min-width: 0; }
+.re-pick input { flex: none; width: 20px; height: 20px; }
+.re-pick span { min-width: 0; overflow-wrap: anywhere; }
+.re-pick small { display: block; color: var(--muted); }
+.re-row .tag.bad { grid-column: 1 / -1; justify-self: start; }
+.re-qty { display: inline-flex; align-items: center; gap: 4px; }
+.re-qty button { width: 36px; height: 36px; font-size: 18px; font-weight: 700; background: var(--soft); border: 0; border-radius: 9px; cursor: pointer; }
+.re-qty input { width: 52px; min-height: 36px; text-align: center; border: 1.5px solid var(--line); border-radius: 9px; }
+.re-price { text-align: right; }
+.re-price small { display: block; color: var(--muted); text-decoration: line-through; }
