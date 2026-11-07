@@ -279,7 +279,7 @@ window.LHBook = (function () {
       return `<option value="${t}" ${bd.time === t && !no ? 'selected' : ''} ${no ? 'disabled' : ''}>${clock(t)} ছাড়ে · আপনার স্টপে ${clock(hhmm(at))} (${past ? 'চলে গেছে' : left > 0 ? `${U.bn(left)}টি খালি` : 'ভর্তি'})</option>`;
     }).join('');
   }
-  const BUS_PAY = [['cash', '💵', 'বাসে নগদ', 'উঠে সুপারভাইজারকে ভাড়া দিন'], ['bkash', '📱', 'বিকাশ', 'এখনই বিকাশে টাকা দিন'], ['nagad', '📱', 'নগদ', 'এখনই নগদে টাকা দিন'], ['card', '💳', 'ডেবিট বা ক্রেডিট কার্ড', 'ভিসা, মাস্টারকার্ড বা অ্যামেক্স']];
+  const BUS_PAY = [['cash', '💵', 'বাসে নগদ', 'উঠে সুপারভাইজারকে ভাড়া দিন'], ['bkash', '📱', 'বিকাশ', 'এখনই বিকাশে টাকা দিন'], ['nagad', '📱', 'নগদ', 'এখনই নগদে টাকা দিন'], ['card', '💳', 'ডেবিট বা ক্রেডিট কার্ড', 'ভিসা, মাস্টারকার্ড বা অ্যামেক্স। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।']];
   function busBookPage(s, it, fromArg, toArg) {
     const back = `<a class="back" href="#/shop/${s.id}">‹ ${U.ud(s.name)}</a>`;
     const blocked = gate(`#/book/${s.id}/${it.id}`, 'টিকেট কাটতে লগইন করুন');

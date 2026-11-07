@@ -947,7 +947,7 @@
 
   // Cash on delivery or at the shop, or paying online before the order goes. Online needs a bill known now.
   const payOnlineOk = () => !groups().some((x) => x.shop.kind === 'service') && !hasAskPrice();
-  const PAY_PICK = [['bkash', '📱', 'বিকাশ', 'অর্ডারের আগে বিকাশে টাকা দিন'], ['nagad', '📱', 'নগদ', 'অর্ডারের আগে নগদে টাকা দিন'], ['card', '💳', 'ডেবিট বা ক্রেডিট কার্ড', 'ভিসা, মাস্টারকার্ড বা অ্যামেক্স']];
+  const PAY_PICK = [['bkash', '📱', 'বিকাশ', 'অর্ডারের আগে বিকাশে টাকা দিন'], ['nagad', '📱', 'নগদ', 'অর্ডারের আগে নগদে টাকা দিন'], ['card', '💳', 'ডেবিট বা ক্রেডিট কার্ড', 'ভিসা, মাস্টারকার্ড বা অ্যামেক্স। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।']];
   function payPick(co) {
     const delivers = groups().some((x) => x.shop.kind !== 'service' && x.g.mode !== 'pickup');
     const atShop = groups().filter((x) => x.shop.kind === 'service' || x.g.mode === 'pickup');
@@ -966,7 +966,7 @@
   const PAY_GATE = {
     bkash: ['বিকাশে টাকা দিন', 'আসল সাইটে এখানে বিকাশের নিজের পাতা খুলবে। নম্বর, কোড ও পিন সেখানেই দেবেন।'],
     nagad: ['নগদে টাকা দিন', 'আসল সাইটে এখানে নগদের নিজের পাতা খুলবে। নম্বর, কোড ও পিন সেখানেই দেবেন।'],
-    card: ['কার্ডে টাকা দিন', 'আসল সাইটে এখানে ব্যাংকের নিরাপদ পেমেন্ট পাতা খুলবে। কার্ডের নম্বর সেখানেই দেবেন।']
+    card: ['কার্ডে টাকা দিন', 'আসল সাইটে এখানে ব্যাংকের নিরাপদ পেমেন্ট পাতা খুলবে। কার্ডের নম্বর সেখানেই দেবেন। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।']
   };
   function paySheet() {
     const p = S.paying;

@@ -1869,5 +1869,9 @@ Object.assign(window.LH_LANG.en, {
   '🏷️ ব্র্যান্ডের পণ্য বেছে নিন': "🏷️ Pick brand products",
   '🔒 ক্রেতার নাম, ফোন বা ঠিকানা এই রিপোর্টে নেই।': "🔒 This report has no buyer's name, phone or address.",
   /* Part 9: in stock */
-  'স্টকে আছে': "In stock"
+  'স্টকে আছে': "In stock",
+  /* Part 10: cards issued abroad */
+  'ভিসা, মাস্টারকার্ড বা অ্যামেক্স। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "Visa, Mastercard or Amex. Visa and Mastercard cards issued abroad work too.",
+  'আসল সাইটে এখানে ব্যাংকের নিরাপদ পেমেন্ট পাতা খুলবে। কার্ডের নম্বর সেখানেই দেবেন। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "On the real site the bank's secure payment page opens here. Give the card number there. Visa and Mastercard cards issued abroad work too.",
+  'বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "Visa and Mastercard cards issued abroad work too."
 });

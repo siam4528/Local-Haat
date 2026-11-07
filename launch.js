@@ -159,7 +159,7 @@ window.LHLaunch = (function () {
     const me = U.viewing() ? null : customer();
     pk = { key, cabins: [], deck: 0, floor: 0, name: me ? me.name : '', phone: me && /^01[3-9]\d{8}$/.test(me.contact || '') ? me.contact : '', pay: 'bkash' };
   }
-  const PAY = [['bkash', '📱', 'বিকাশ'], ['nagad', '📱', 'নগদ'], ['card', '💳', 'ডেবিট বা ক্রেডিট কার্ড']];
+  const PAY = [['bkash', '📱', 'বিকাশ'], ['nagad', '📱', 'নগদ'], ['card', '💳', 'ডেবিট বা ক্রেডিট কার্ড', 'ভিসা, মাস্টারকার্ড বা অ্যামেক্স। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।']];
   function tripPage(shopId, tripId) {
     const s = Store.shopById(shopId);
     if (!s || !Store.shopLive(s) || !s.launch) return null;
@@ -205,7 +205,7 @@ window.LHLaunch = (function () {
           <section class="panel pay-pick">
             <h2 class="tight" id="ln-pay-h">কিভাবে টাকা দেবেন?</h2>
             <p class="meta">অ্যাপে কাটা টিকেটের টাকা অনলাইনেই দিতে হয়। পেমেন্টের সময় কেবিন ${U.bn(Store.PAY_HOLD_MIN)} মিনিট আপনার জন্য রাখা থাকবে।</p>
-            <div role="radiogroup" aria-labelledby="ln-pay-h">${PAY.map(([v, icon, word]) => `<label class="pay"><input type="radio" name="ln-pay" data-lp="pay" value="${v}" ${pk.pay === v ? 'checked' : ''}><span><b>${icon} ${word}</b></span></label>`).join('')}</div>
+            <div role="radiogroup" aria-labelledby="ln-pay-h">${PAY.map(([v, icon, word, sub]) => `<label class="pay"><input type="radio" name="ln-pay" data-lp="pay" value="${v}" ${pk.pay === v ? 'checked' : ''}><span><b>${icon} ${word}</b>${sub ? `<small>${sub}</small>` : ''}</span></label>`).join('')}</div>
           </section>` : ''}
           <section class="panel"><h2 class="tight">নদীপথ</h2><div class="mini-map route-map" data-river="${s.id}/${t.route.id}" aria-label="নদীপথের ম্যাপ: ছাড়ার ও পৌঁছানোর ঘাট"></div></section>
         </div>
