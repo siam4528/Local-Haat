@@ -221,7 +221,7 @@ window.LHTeam = (function () {
   }
 
   /* ---------- the audit log: read only, filtered by person, action, date and area ---------- */
-  const dayOf = (at) => { const d = new Date(at); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const dayOf = (at) => window.LHTime.ymd(at);
   // a value before or after a change, in the page's own digits
   const val = (v) => U.ud(window.LHI18n.lang === 'en' ? String(v) : U.bn(String(v)));
   const changeText = (c) => (c ? `<span class="aud-change">${c.before !== undefined && c.before !== '' ? `<span translate="no">${val(c.before)}</span> → ` : ''}<span translate="no">${val(c.after === undefined ? '' : c.after)}</span></span>` : '');

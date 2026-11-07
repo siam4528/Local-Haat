@@ -14,10 +14,13 @@ window.LHLaunch = (function () {
   const owner = () => window.LHAuth.current('owner');
   const ownShop = () => { const m = owner(); return m && Store.shopById(m.shopId); };
   const locale = () => (window.LHI18n.lang === 'en' ? 'en-GB' : 'bn-BD');
-  const clock = (d) => d.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
-  const dayText = (d) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' });
-  const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const addDays = (day, n) => { const d = new Date(day + 'T12:00'); d.setDate(d.getDate() + n); return ymd(d); };
+  // on Dhaka's clock and calendar, whatever the phone's time zone
+  const T = window.LHTime;
+  const clock = (d) => d.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit', timeZone: T.TZ });
+  const dayText = (d) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: T.TZ });
+  const ymd = (d) => T.ymd(d);
+  const addDays = (day, n) => T.addDays(day, n);
+  const noon = (day) => T.at(day, '12:00');
   const KINDS = ['single', 'double', 'family', 'vip'];
   const SHORT = { single: 'সিঙ্গেল', double: 'ডাবল', family: 'ফ্যামিলি', vip: 'ভিআইপি' };
   const ICON = { single: '🛏️', double: '🛏️', family: '👨‍👩‍👧', vip: '⭐', deck: '🧍' };
@@ -28,7 +31,7 @@ window.LHLaunch = (function () {
   const minutesText = (min) => `${U.bn(Math.floor(min / 60))} <span>ঘণ্টা</span>${min % 60 ? ` ${U.bn(min % 60)} <span>মিনিট</span>` : ''}`;
   // when it leaves and when it reaches; a night launch reaches the next morning
   function whenHtml(dep, arr) {
-    const next = arr.toDateString() !== dep.toDateString();
+    const next = T.ymd(arr) !== T.ymd(dep);
     return `<span>ছাড়বে</span> ${dayText(dep)}, ${clock(dep)} · <span>পৌঁছাবে</span> ${clock(arr)}${next ? ' <span>(পরের দিন)</span>' : ''}`;
   }
   function tripNote(t) {
@@ -132,7 +135,7 @@ window.LHLaunch = (function () {
     const days = Array.from({ length: Store.LAUNCH_DAYS }, (_, i) => addDays(today, i));
     const date = days.includes(lq.date) ? lq.date : today;
     const list = Store.lnFind(lq.from, lq.to, date);
-    const dayLabel = (d, i) => (i === 0 ? 'আজ' : i === 1 ? 'কাল' : dayText(new Date(d + 'T12:00')));
+    const dayLabel = (d, i) => (i === 0 ? 'আজ' : i === 1 ? 'কাল' : dayText(noon(d)));
     return `<a class="back" href="#/">‹ হোম</a>
       <h1 class="page-h">লঞ্চের টিকেট</h1>
       <p class="meta gap">কেবিন ম্যাপে বেছে নিন, ডেকের টিকেট সংখ্যা দিয়ে। অনলাইনে টাকা দিন, ঘাটে কোড বা QR দেখিয়ে উঠুন।</p>
@@ -145,7 +148,7 @@ window.LHLaunch = (function () {
         <button type="submit" class="btn block">লঞ্চ খুঁজুন</button>
       </form>
       <div class="chips gap-t" role="group" aria-label="কোন দিন">${days.map((d, i) => `<button type="button" class="chip ${d === date ? 'on' : ''}" aria-pressed="${d === date}" data-ln="day" data-day="${d}">${dayLabel(d, i)}</button>`).join('')}</div>
-      <h2><span>${U.bn(list.length)}</span><span>টি ট্রিপ</span> · ${dayText(new Date(date + 'T12:00'))}</h2>
+      <h2><span>${U.bn(list.length)}</span><span>টি ট্রিপ</span> · ${dayText(noon(date))}</h2>
       ${list.length ? `<div class="stack">${list.map(resultCard).join('')}</div>` : '<div class="empty"><span aria-hidden="true">🛳️</span><h3>এই দিনে এই পথে কোনো লঞ্চ পাওয়া যায়নি</h3><p>ঘাটের নাম তালিকা থেকে বেছে নিন, অন্য দিন দেখুন, অথবা একটি ঘর খালি রাখুন।</p></div>'}
       <p class="meta gap-t">ডেমো: লঞ্চ, ভাড়া ও সময় নমুনা তথ্য।</p>`;
   }
@@ -251,7 +254,7 @@ window.LHLaunch = (function () {
     return `<div class="ln-tk-head"><b>🛳️ ${U.ud(L.boatName)}</b><span>${U.ud(L.from)} → ${U.ud(L.to)}</span></div>
       <ul class="mini job">
         <li><span>🕗 <span>ছাড়বে</span></span><b>${dayText(dep)}, ${clock(dep)}</b></li>
-        <li><span>🏁 <span>পৌঁছাবে</span></span><b>${clock(arr)}${arr.toDateString() !== dep.toDateString() ? ' <span>(পরের দিন)</span>' : ''}</b></li>
+        <li><span>🏁 <span>পৌঁছাবে</span></span><b>${clock(arr)}${T.ymd(arr) !== T.ymd(dep) ? ' <span>(পরের দিন)</span>' : ''}</b></li>
         ${L.cabins.map((c) => `<li><span>🛏️ <span>কেবিন</span> <b translate="no">${U.bn(c.no)}</b></span><b>${Store.CABIN[c.type]} · ${U.ud(c.floor)}</b></li>`).join('')}
         ${L.deck ? `<li><span>🧍 <span>ডেক</span></span><b><span>${U.bn(L.deck)}</span> <span>জন</span></b></li>` : ''}
         <li><span>👤 <span>যাত্রী</span></span><b>${U.ud(o.recipient.name)}</b></li>
@@ -511,7 +514,7 @@ window.LHLaunch = (function () {
       <p class="meta gap">নিয়ম দিলে সামনের ${U.bn(Store.LAUNCH_DAYS)} দিনের ট্রিপ নিজে থেকে তৈরি হয়। কোনো একটি ট্রিপ দেরি, বাতিল বা ছেড়ে গেছে বলে দিতে পারবেন।</p>
       <section class="panel">
         <h2 class="tight">ট্রিপের নিয়ম</h2>
-        ${l.rules.length ? `<ul class="mini ln-rules">${l.rules.map((r) => `<li><span><b>${U.ud(boatName(r.boat))}</b> · ${U.ud(routeName(r.route))}<br><small>🕗 ${clock(new Date('2000-01-01T' + r.time))} · ${daysText(r.days)}</small></span>
+        ${l.rules.length ? `<ul class="mini ln-rules">${l.rules.map((r) => `<li><span><b>${U.ud(boatName(r.boat))}</b> · ${U.ud(routeName(r.route))}<br><small>🕗 ${clock(T.at('2000-01-01', r.time))} · ${daysText(r.days)}</small></span>
           <button type="button" class="btn danger sm" data-ln="rule-del" data-id="${r.id}" aria-label="নিয়ম মুছুন">মুছুন</button></li>`).join('')}</ul>` : '<p class="meta">এখনো কোনো নিয়ম নেই।</p>'}
         ${l.boats.length && l.routes.length ? `<form id="rule-form" class="gap-t" novalidate>
           <h3>+ নতুন নিয়ম</h3>
@@ -528,7 +531,7 @@ window.LHLaunch = (function () {
           <button type="submit" class="btn ghost block">নিয়ম যোগ করুন</button>
         </form>` : '<p class="note gap-t">নিয়ম দিতে আগে লঞ্চ ও রুট দিন।</p>'}
       </section>
-      ${Object.keys(byDay).map((d) => `<h2 class="gap-t">${dayText(new Date(d + 'T12:00'))}</h2><div class="stack">${byDay[d].map((t) => `<article class="panel ln-trow">
+      ${Object.keys(byDay).map((d) => `<h2 class="gap-t">${dayText(noon(d))}</h2><div class="stack">${byDay[d].map((t) => `<article class="panel ln-trow">
         <div class="o-head"><div><b>🕗 ${clock(t.dep)} · ${U.ud(t.boat.name)}</b><small>${U.ud(t.route.from.name)} → ${U.ud(t.route.to.name)}</small></div>${statusTag(t)}</div>
         <p class="meta">${soldText(s, t)}</p>
         ${tripNote(t)}
@@ -543,7 +546,7 @@ window.LHLaunch = (function () {
     const s = ownShop();
     const t = Store.lnTrip(s, id);
     const at = new Date(t.dep.getTime() + 60 * 6e4);
-    const local = ymd(at) + 'T' + String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+    const local = ymd(at) + 'T' + T.hhmm(at);
     U.openSheet(`<h2 id="sheet-h">ট্রিপ দেরিতে ছাড়বে</h2>
       <p class="meta">${U.ud(t.boat.name)} · ${U.ud(t.route.from.name)} → ${U.ud(t.route.to.name)} · <span>আগের সময়</span> ${clock(t.dep0)}</p>
       <form id="late-form" data-id="${id}" novalidate>

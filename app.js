@@ -960,8 +960,9 @@
   }
 
   /* ---------- orders + tracking ---------- */
-  const fmtWhen = (when) => fmtTime(when.replace(' ', 'T'));
-  const fmtTime = (at) => new Date(at).toLocaleString(window.LHI18n.lang === 'en' ? 'en-GB' : 'bn-BD', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  // times are written and shown on Dhaka's clock (dhaka.js)
+  const fmtWhen = (when) => fmtTime(window.LHTime.parse(when));
+  const fmtTime = (at) => window.LHTime.show(at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }, window.LHI18n.lang);
   function timeline(o) {
     const f = Store.flow(o);
     if (o.status === 'cancelled') {
@@ -1492,8 +1493,8 @@
       // a shop the agent closed for now is refused by the store below, with the reason
       if (Store.canBook(x.shop) && (x.shop.kind === 'service' || date || time || !Store.openNow(x.shop))) {
         if (!date || !time) bad('c-when-err-' + x.id, 'তারিখ ও সময় দিন।', 'c-date-' + x.id);
-        else if (new Date(date + 'T' + time) < new Date()) bad('c-when-err-' + x.id, 'এই সময় পার হয়ে গেছে, পরের কোনো সময় দিন', 'c-date-' + x.id);
-        else if (!Store.openAt(x.shop, new Date(date + 'T' + time))) bad('c-when-err-' + x.id, 'ওই সময় দোকান বন্ধ থাকে, খোলার সময়ের মধ্যে দিন', 'c-date-' + x.id);
+        else if (window.LHTime.at(date, time) < new Date()) bad('c-when-err-' + x.id, 'এই সময় পার হয়ে গেছে, পরের কোনো সময় দিন', 'c-date-' + x.id);
+        else if (!Store.openAt(x.shop, window.LHTime.at(date, time))) bad('c-when-err-' + x.id, 'ওই সময় দোকান বন্ধ থাকে, খোলার সময়ের মধ্যে দিন', 'c-date-' + x.id);
         else when = date + ' ' + time;
       }
       details[x.id] = { placeLabel: p.label, when, note: (co.note[x.id] || '').trim(), recipient: { name: (co.name[p.id] || '').trim(), phone: phoneOf(co.phone[p.id]), line: p.custom && (co.line[p.id] || '').trim() ? co.line[p.id].trim() + ', ' + p.line : p.line, lat: p.lat, lng: p.lng } };

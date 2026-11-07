@@ -121,7 +121,7 @@ window.LHStore = (function () {
         lines: [{ itemId: 's1-1', name: 'সয়াবিন তেল', unit: '১ লিটার', price: 190, icon: '🫗', qty: 2 }], sub: 380, fee: SEED_DELIVERY_FEE, discount: 0, offerCode: '', total: 380 + SEED_DELIVERY_FEE, pay: 'cod', status: 'delivered',
         history: steps(['placed', 'confirmed', 'packed', 'out_for_delivery', 'delivered'], 3, ['customer', 'shop', 'shop', 'delivery', 'delivery']),
         delivery: { id: RIDER.id, name: RIDER.name, phone: RIDER.phone }, pin: '4821', createdAt: ago(3) },
-      { code: '9000000002', shopId: 's6', shopName: 'আদর্শ ইলেকট্রনিক্স ও মেরামত', shopIcon: '🔌', customerId: 'a-customer', mode: 'service', book: 'quote', placeLabel: p.label, recipient, note: 'ফ্যান ঘুরছে না', when: ago(5).slice(0, 10) + ' 11:00',
+      { code: '9000000002', shopId: 's6', shopName: 'আদর্শ ইলেকট্রনিক্স ও মেরামত', shopIcon: '🔌', customerId: 'a-customer', mode: 'service', book: 'quote', placeLabel: p.label, recipient, note: 'ফ্যান ঘুরছে না', when: DT.ymd(ago(5)) + ' 11:00',
         lines: [{ itemId: 's6-2', name: 'ফ্যান মেরামত', unit: 'ভিজিট চার্জ', price: 200, icon: '🌀', qty: 1 }], sub: 200, fee: 0, total: 600, pay: 'shop', serial: 0, status: 'completed',
         history: steps(['placed', 'confirmed', 'completed'], 5, ['customer', 'shop', 'shop']),
         delivery: null, offer: null, contract: { amount: 600, terms: 'কয়েল বদল', at: ago(5, 10) }, pin: '7305', createdAt: ago(5) }
@@ -249,23 +249,24 @@ window.LHStore = (function () {
     let a = parseInt(hash(text), 36) >>> 0;
     return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   }
-  const dayStr = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  // every day, month and clock time of the app is Dhaka's (dhaka.js)
+  const DT = window.LHTime;
+  const dayStr = (d) => DT.ymd(d);
   function demoSales(shops) {
     const out = [];
-    const now = new Date();
-    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const yesterday = DT.addDays(DT.ymd(), -1);
     shops.forEach((s) => {
       const priced = s.items.filter((it) => it.price > 0);
       if (!DEMO_PER_MONTH[s.id] || !priced.length) return;
       for (let back = 5; back >= 0; back--) {
-        const first = new Date(now.getFullYear(), now.getMonth() - back, 1);
-        const days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-        const last = back ? days : yesterday.getMonth() === first.getMonth() ? yesterday.getDate() : 0;
+        const ym = DT.monthAdd(DT.month(), -back);
+        const days = DT.daysIn(ym);
+        const last = back ? days : yesterday.slice(0, 7) === ym ? Number(yesterday.slice(8)) : 0;
         if (!last) continue;
-        const rnd = seeded(s.id + dayStr(first));
+        const rnd = seeded(s.id + ym + '-01');
         const n = Math.round(DEMO_PER_MONTH[s.id] * (0.6 + rnd() * 0.8) * (last / days));
         for (let i = 0; i < n; i++) {
-          const day = new Date(first.getFullYear(), first.getMonth(), 1 + Math.floor(rnd() * last));
+          const day = ym + '-' + String(1 + Math.floor(rnd() * last)).padStart(2, '0');
           const lines = [];
           const k = 1 + Math.floor(rnd() * Math.min(3, priced.length));
           for (let j = 0; j < k; j++) {
@@ -274,7 +275,7 @@ window.LHStore = (function () {
             if (has) has[1] += 1; else lines.push([it.name, it.book ? 1 : 1 + Math.floor(rnd() * 2), it.price]);
           }
           const delivered = s.kind === 'shop' && rnd() < 0.7;
-          out.push({ s: s.id, d: dayStr(day), t: lines.reduce((a, l) => a + l[1] * l[2], 0), f: delivered ? 40 : 0, x: rnd() < 0.08 ? 1 : 0, l: lines.map((l) => [l[0], l[1]]) });
+          out.push({ s: s.id, d: day, t: lines.reduce((a, l) => a + l[1] * l[2], 0), f: delivered ? 40 : 0, x: rnd() < 0.08 ? 1 : 0, l: lines.map((l) => [l[0], l[1]]) });
         }
       }
     });
@@ -328,8 +329,7 @@ window.LHStore = (function () {
   // a demo test offer runs for some days from the day the demo data is made
   function offerDates(it) {
     if (!it.offer || !it.offer.days) return it;
-    const d = new Date(Date.now() + it.offer.days * 864e5);
-    it.offer = { price: it.offer.price, until: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') };
+    it.offer = { price: it.offer.price, until: DT.ymd(Date.now() + it.offer.days * 864e5) };
     return it;
   }
   function seed() {
@@ -402,14 +402,15 @@ window.LHStore = (function () {
   // a close time before the open time runs past midnight
   function openAt(s, date) {
     if (!s.week) return true;
-    const now = date.getHours() * 60 + date.getMinutes();
-    const today = s.week[date.getDay()];
+    const p = DT.parts(date);
+    const now = p.hh * 60 + p.mm;
+    const today = s.week[p.wd];
     if (today && !today.off) {
       const o = minutes(today.o);
       const e = minutes(today.e);
       if (o <= e ? now >= o && now <= e : now >= o) return true;
     }
-    const prev = s.week[(date.getDay() + 6) % 7];
+    const prev = s.week[(p.wd + 6) % 7];
     return !!prev && !prev.off && minutes(prev.e) < minutes(prev.o) && now <= minutes(prev.e);
   }
   const openNow = (s, date) => !!s.open && !s.suspended && openAt(s, date || new Date());
@@ -418,7 +419,7 @@ window.LHStore = (function () {
   // the LocalHaat team can suspend a shop; an unverified owner's shop is hidden until the owner verifies
   const shopLive = (s) => !s.hidden && !s.suspended;
   const bnNum = (n) => String(n).replace(/\d/g, (c) => '০১২৩৪৫৬৭৮৯'[c]);
-  const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const todayStr = () => DT.ymd();
   const FULL = 'ব্রাউজারের জায়গা শেষ। কিছু ছবি মুছে আবার চেষ্টা করুন।';
   function commit(undo) {
     if (save(true)) return;
@@ -564,7 +565,7 @@ window.LHStore = (function () {
       if (!canBook(shop)) fail('দোকানটি সাময়িকভাবে বন্ধ আছে');
       // an order for later: picked up, delivered or served at a time the shop is open
       if (d.when) {
-        const at = new Date(d.when.replace(' ', 'T'));
+        const at = DT.parse(d.when);
         if (Number.isNaN(at.getTime()) || at < new Date()) fail('এই সময় পার হয়ে গেছে, পরের কোনো সময় দিন');
         if (!openAt(shop, at)) fail('ওই সময় দোকান বন্ধ থাকে, খোলার সময়ের মধ্যে দিন');
       } else if (!openNow(shop)) fail('দোকান এখন বন্ধ, কখন চান সেই সময় দিন');
@@ -624,12 +625,13 @@ window.LHStore = (function () {
     const it = shop.items.find((x) => x.id === p.itemId);
     if (!it || !it.book || !it.available || it.book === 'bus') fail('এই বুকিং এখন নেওয়া হচ্ছে না');
     if (!shop.open || shop.suspended) fail('দোকানটি সাময়িকভাবে বন্ধ আছে');
-    const at = new Date(p.date + 'T' + p.time);
+    const at = DT.at(p.date, p.time);
     if (Number.isNaN(at.getTime()) || at < new Date()) fail('এই সময় পার হয়ে গেছে, পরের কোনো সময় দিন');
-    const day = shop.week && shop.week[at.getDay()];
+    const wd = DT.parts(at).wd;
+    const day = shop.week && shop.week[wd];
     if (day && day.off) fail('ওই দিন বন্ধ থাকে, অন্য দিন বেছে নিন');
     if (it.book !== 'fixed' && !openAt(shop, at)) fail('ওই সময় বন্ধ থাকে, খোলার সময়ের মধ্যে দিন');
-    if (it.days && !it.days.includes(at.getDay())) fail('এই ডাক্তার ওই দিন বসেন না, অন্য দিন বেছে নিন');
+    if (it.days && !it.days.includes(wd)) fail('এই ডাক্তার ওই দিন বসেন না, অন্য দিন বেছে নিন');
     const when = p.date + ' ' + p.time;
     let serial = 0;
     if (it.book === 'fixed') {
@@ -711,8 +713,7 @@ window.LHStore = (function () {
   }
   // when the bus is at a stop: the departure plus that stop's minutes, the next day for a night coach
   function busAt(it, date, time, i) {
-    const d = new Date(date + 'T' + time);
-    return new Date(d.getTime() + it.stops[i].min * 6e4);
+    return new Date(DT.at(date, time).getTime() + it.stops[i].min * 6e4);
   }
   const busKm = (it, from, to) => it.stops[to].km - it.stops[from].km;
   // the routes that pass both stops in this order, from every live bus counter, wherever the customer is
@@ -753,7 +754,7 @@ window.LHStore = (function () {
     const fare = busFare(it, from, to);
     const now = new Date().toISOString();
     const st = (i) => it.stops[i].name;
-    const hhmm = String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+    const hhmm = DT.hhmm(at);
     const o = {
       code: newCode(), shopId: shop.id, shopName: shop.name, shopIcon: shop.icon, customerId: p.customerId, mode: 'service', book: 'bus',
       placeLabel: p.placeLabel || '', recipient: p.recipient, note: '', when: dayStr(at) + ' ' + hhmm,
@@ -845,15 +846,15 @@ window.LHStore = (function () {
   const TRIP_STATUS = { on: 'চলবে', late: 'দেরি', off: 'বাতিল', gone: 'ছেড়ে গেছে' };
   const DAY_RULES = ['daily', 'odd', 'even'];
   const lnOf = (s) => (s && s.launch) || null;
-  const hhmmOf = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-  const addDays = (ymd, n) => { const d = new Date(ymd + 'T12:00'); d.setDate(d.getDate() + n); return dayStr(d); };
+  const hhmmOf = (d) => DT.hhmm(d);
+  const addDays = (ymd, n) => DT.addDays(ymd, n);
   // odd and even go by the date, as launch timetables do; a list of week days goes by the day of the week
   function ruleOn(rule, ymd) {
-    const d = new Date(ymd + 'T12:00');
+    const d = DT.parts(DT.at(ymd, '12:00'));
     if (rule.days === 'daily') return true;
-    if (rule.days === 'odd') return d.getDate() % 2 === 1;
-    if (rule.days === 'even') return d.getDate() % 2 === 0;
-    return Array.isArray(rule.days) && rule.days.includes(d.getDay());
+    if (rule.days === 'odd') return d.d % 2 === 1;
+    if (rule.days === 'even') return d.d % 2 === 0;
+    return Array.isArray(rule.days) && rule.days.includes(d.wd);
   }
   function lnTripOf(s, rule, date) {
     const l = lnOf(s);
@@ -862,7 +863,7 @@ window.LHStore = (function () {
     if (!boat || !route) return null;
     const id = rule.id + '@' + date;
     const set = l.trips[id] || {};
-    const dep0 = new Date(date + 'T' + rule.time);
+    const dep0 = DT.at(date, rule.time);
     const dep = set.status === 'late' && set.late ? new Date(set.late) : dep0;
     return { id, shopId: s.id, rule: rule.id, date, time: rule.time, boat, route, status: set.status || 'on', note: set.note || '', dep0, dep, arr: new Date(dep.getTime() + route.min * 6e4) };
   }
@@ -1114,7 +1115,8 @@ window.LHStore = (function () {
     const why = words(note).slice(0, 120);
     const set = { status, at: new Date().toISOString(), note: why };
     if (status === 'late') {
-      const t = new Date(late);
+      // the counter's form gives a Dhaka date and time
+      const t = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}$/.test(String(late || '')) ? DT.parse(late) : new Date(late);
       if (Number.isNaN(t.getTime()) || t <= trip.dep0) fail('নতুন সময় আগের ছাড়ার সময়ের পরে দিন');
       if (t - trip.dep0 > 24 * 36e5) fail('২৪ ঘণ্টার বেশি দেরি হলে ট্রিপ বাতিল করুন');
       set.late = t.toISOString();
@@ -1123,7 +1125,7 @@ window.LHStore = (function () {
     if (status === 'on') delete l.trips[tripId]; else l.trips[tripId] = set;
     const now = lnTrip(s, tripId);
     const tickets = lnTickets(s, tripId).filter((o) => o.status === 'confirmed');
-    const when = (d) => `${bnNum(d.getDate())}/${bnNum(d.getMonth() + 1)} ${bnNum(hhmmOf(d))}`;
+    const when = (d) => { const p = DT.parts(d); return `${bnNum(p.d)}/${bnNum(p.m)} ${bnNum(hhmmOf(d))}`; };
     tickets.forEach((o) => {
       if (status === 'off') {
         lnCancelTicket(o, 'shop', true, 'লঞ্চ কর্তৃপক্ষ ট্রিপ বাতিল করেছে: ' + why);
@@ -1338,18 +1340,17 @@ window.LHStore = (function () {
   }
   // the end of the n-th working day after a moment
   function addWorkDays(from, n) {
-    const d = new Date(from);
+    let day = DT.ymd(from);
     let left = n;
-    while (left > 0) { d.setDate(d.getDate() + 1); if (!OFF_DAYS.includes(d.getDay())) left--; }
-    d.setHours(23, 59, 0, 0);
-    return d;
+    while (left > 0) { day = DT.addDays(day, 1); if (!OFF_DAYS.includes(DT.weekday(day))) left--; }
+    return DT.at(day, '23:59');
   }
   // whole working days from one moment's day to another's
   function workDaysBetween(a, b) {
-    const d = new Date(a);
-    const end = new Date(b);
+    let day = DT.ymd(a);
+    const end = DT.ymd(b);
     let n = 0;
-    while (dayStr(d) < dayStr(end)) { d.setDate(d.getDate() + 1); if (!OFF_DAYS.includes(d.getDay())) n++; }
+    while (day < end) { day = DT.addDays(day, 1); if (!OFF_DAYS.includes(DT.weekday(day))) n++; }
     return n;
   }
   const askDue = (at, onLicence) => (onLicence ? new Date(new Date(at).getTime() + ASK_LICENCE_HOURS * 36e5) : addWorkDays(at, ASK_WORK_DAYS));
@@ -1927,8 +1928,8 @@ window.LHStore = (function () {
   }
   // the last n months, this one first, as "YYYY-MM"
   function salesMonths(n) {
-    const now = new Date();
-    return Array.from({ length: n }, (_, i) => dayStr(new Date(now.getFullYear(), now.getMonth() - i, 1)).slice(0, 7));
+    const now = DT.month();
+    return Array.from({ length: n }, (_, i) => DT.monthAdd(now, -i));
   }
   // one shop's month, or every shop's when shopId is empty
   function salesReport(shopId, month, rows) {

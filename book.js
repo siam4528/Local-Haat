@@ -40,7 +40,7 @@ window.LHBook = (function () {
     return WEEK_ORDER.filter((d) => days.includes(d)).map((d) => DAYS[d]).join(', ');
   }
   const slotsText = (it) => (it.slots || []).map(clock).join(', ');
-  const dateText = (ymd) => new Date(ymd + 'T12:00').toLocaleDateString(window.LHI18n.lang === 'en' ? 'en-GB' : 'bn-BD', { day: 'numeric', month: 'long' });
+  const dateText = (ymd) => window.LHTime.show(window.LHTime.at(ymd, '12:00'), { day: 'numeric', month: 'long' }, window.LHI18n.lang);
   // how long a test's offer runs, or that it has ended
   function offerText(it) {
     if (!it.offer) return '';
@@ -52,15 +52,16 @@ window.LHBook = (function () {
     if (!s.open) return { open: false, text: 'সাময়িকভাবে বন্ধ' };
     if (!s.week) return { open: true, text: 'খোলা আছে' };
     const now = new Date();
-    const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    const p = window.LHTime.parts(now);
+    const hhmm = window.LHTime.hhmm(now);
     if (Store.openNow(s, now)) {
-      const today = s.week[now.getDay()];
+      const today = s.week[p.wd];
       if (today && !today.off && today.o <= hhmm && allDay(today)) return { open: true, text: 'খোলা আছে · ২৪ ঘণ্টা' };
-      const end = today && !today.off && today.o <= hhmm ? today.e : s.week[(now.getDay() + 6) % 7].e;
+      const end = today && !today.off && today.o <= hhmm ? today.e : s.week[(p.wd + 6) % 7].e;
       return { open: true, text: `খোলা আছে · বন্ধ হবে ${clock(end)}` };
     }
     for (let i = 0; i < 8; i++) {
-      const day = (now.getDay() + i) % 7;
+      const day = (p.wd + i) % 7;
       const w = s.week[day];
       if (w && !w.off && (i > 0 || w.o > hhmm)) return { open: false, text: `এখন বন্ধ · খুলবে ${i === 0 ? 'আজ' : DAYS[day]} ${clock(w.o)}` };
     }
@@ -68,7 +69,7 @@ window.LHBook = (function () {
   }
   function hoursTable(s) {
     if (!s.week) return '<p class="meta">এই দোকান এখনো সাপ্তাহিক সময় জানায়নি।</p>';
-    const today = new Date().getDay();
+    const today = window.LHTime.parts().wd;
     return `<ul class="hours">${WEEK_ORDER.map((d) => {
       const w = s.week[d];
       return `<li class="${d === today ? 'today' : ''}"><span>${DAYS[d]}</span><b class="${w.off ? 'off' : ''}">${w.off ? 'বন্ধ' : allDay(w) ? '২৪ ঘণ্টা' : `${clock(w.o)} - ${clock(w.e)}`}</b></li>`;
@@ -199,11 +200,11 @@ window.LHBook = (function () {
       <small class="err" id="b-photo-err"></small></div>`;
 
   /* ---------- bus tickets: by route, from any stop, the fare by distance ---------- */
-  const hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  const hhmm = (d) => window.LHTime.hhmm(d);
   // the time at the passenger's stop; a night coach reaches it the next day
   function boardText(b) {
     const at = new Date(b.board);
-    return `${clock(hhmm(at))}${at.toDateString() !== new Date(b.date + 'T12:00').toDateString() ? ' <span>(পরদিন)</span>' : ''}, ${dateText(b.date)}`;
+    return `${clock(hhmm(at))}${window.LHTime.ymd(at) !== b.date ? ' <span>(পরদিন)</span>' : ''}, ${dateText(b.date)}`;
   }
   // the stops in order: the counters marked, with their phone, and the passenger's two stops when there are any
   function stopsHtml(it, mark) {
@@ -374,12 +375,12 @@ window.LHBook = (function () {
   }
   // a time that has passed, a day the shop is closed and a day the doctor does not sit cannot be picked
   function slotOptions(s, it) {
-    const day = bd.date ? new Date(bd.date + 'T00:00').getDay() : -1;
+    const day = bd.date ? window.LHTime.weekday(bd.date) : -1;
     const shut = day >= 0 && s.week && s.week[day] && s.week[day].off;
     const away = day >= 0 && it.days && !it.days.includes(day);
     return it.slots.map((t) => {
       const left = bd.date ? Store.seatsLeft(it, bd.date, t) : it.cap;
-      const past = !!bd.date && new Date(bd.date + 'T' + t) < new Date();
+      const past = !!bd.date && window.LHTime.at(bd.date, t) < new Date();
       const why = shut ? 'বন্ধের দিন' : away ? 'ডাক্তার বসেন না' : past ? 'সময় পার হয়েছে' : left > 0 ? `${U.bn(left)}টি খালি` : 'ভর্তি';
       const no = shut || away || past || left <= 0;
       return `<option value="${t}" ${bd.slot === t && !no ? 'selected' : ''} ${no ? 'disabled' : ''}>${clock(t)} (${why})</option>`;

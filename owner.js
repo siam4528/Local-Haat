@@ -65,8 +65,8 @@ window.LHOwner = (function () {
     // coming back to the panel: new orders must be the first thing the owner sees
     if (cameBack && groups.new.length) orderTab = 'new';
     cameBack = false;
-    const today = new Date().toDateString();
-    const doneToday = all.filter((o) => ['delivered', 'completed'].includes(o.status) && new Date(o.createdAt).toDateString() === today);
+    const today = window.LHTime.ymd();
+    const doneToday = all.filter((o) => ['delivered', 'completed'].includes(o.status) && window.LHTime.ymd(o.createdAt) === today);
     const chip = (id, label) => `<button type="button" class="chip ${orderTab === id ? 'on' : ''}" aria-pressed="${orderTab === id}" data-own="order-tab" data-id="${id}">${label} (${U.bn(groups[id].length)})</button>`;
     const list = groups[orderTab];
     return `<h1 class="page-h">${U.ud(s.name)}</h1>
