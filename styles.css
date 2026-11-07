@@ -1258,3 +1258,10 @@ body[data-page="map"] .top-in > .search { display: none; }
 .visit-box p { margin: 0 0 4px; }
 .visit-pics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .visit-pics img { width: 84px; height: 84px; object-fit: cover; border-radius: 9px; border: 1px solid var(--line); }
+
+/* Part 6: the picture at handing over */
+.proof-field { margin-top: 10px; }
+.proof-take { position: relative; }
+.proof-prev img, .proof-pic { display: block; max-width: 100%; max-height: 280px; margin-top: 8px; border-radius: 12px; border: 1px solid var(--line); object-fit: cover; }
+.proof-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; vertical-align: middle; border: 1px solid var(--line); }
+.proof-line { display: flex; align-items: center; gap: 8px; }

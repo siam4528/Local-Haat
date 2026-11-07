@@ -104,6 +104,12 @@ window.LHRider = (function () {
       ${o.status === 'out_for_delivery' ? `<section class="panel r-live" id="r-live" data-code="${o.code}"><b>📍 লাইভ লোকেশন</b><p id="r-live-st" role="status">ফোনের লোকেশন চাওয়া হচ্ছে…</p></section>` : ''}
       ${o.status === 'out_for_delivery' ? `<form id="r-deliver" class="panel r-pin" data-code="${o.code}" novalidate>
         <label class="field"><span>গ্রাহকের ৪ সংখ্যার কোড</span><input id="r-pin" type="text" inputmode="numeric" maxlength="4" autocomplete="off" class="code-in"><small class="err" id="r-pin-err"></small></label>
+        <div class="field proof-field"><span class="flabel">📷 হাতে দেওয়ার ছবি</span>
+          <label class="btn ghost block proof-take"><input type="file" id="r-proof" accept="image/*" capture="environment" hidden><span id="r-proof-label">${proofShot.code === o.code ? '✓ ছবি তোলা হয়েছে, আবার তুলতে চাপুন' : '📷 জিনিস বা দরজার ছবি তুলুন'}</span></label>
+          <div id="r-proof-prev" class="proof-prev">${proofShot.code === o.code ? `<img src="${proofShot.pic}" alt="ডেলিভারির ছবি">` : ''}</div>
+          <small>জিনিস বা দরজা দেখা গেলেই হবে, কারো মুখের ছবি লাগবে না।</small>
+          <button type="button" class="link" data-rider="no-cam">ক্যামেরা কাজ করছে না?</button>
+          <label class="field" id="r-nocam" hidden><span>ছবি না তোলার কারণ</span><textarea id="r-nocam-why" rows="2" maxlength="200" placeholder="যেমন: ফোনের ক্যামেরা নষ্ট"></textarea><small>লোকালহাট টিম এটি দেখবে।</small></label></div>
         <button type="submit" class="btn huge block">✅ ডেলিভারি সম্পন্ন</button>
         <p class="meta">কোড না পেলে গ্রাহককে কল করুন, অথবা <a href="#/support/delivery">লোকালহাট টিমকে জানান</a>। টিম নিশ্চিত করতে পারবে।</p>
       </form>` : ''}
@@ -161,6 +167,20 @@ window.LHRider = (function () {
         <small class="err" id="pp-err" role="alert"></small>
         <button type="submit" class="btn block sheet-go">জমা দিন</button>
       </form></div>`;
+  }
+  // the picture at handing over, kept until the delivery is done
+  let proofShot = { code: '', pic: '' };
+  async function onProof(input) {
+    const f = input.files[0];
+    input.value = '';
+    if (!f) return;
+    const form = document.getElementById('r-deliver');
+    try {
+      proofShot = { code: form.dataset.code, pic: (await window.LHImage.readWhole(f)).image };
+      document.getElementById('r-proof-prev').innerHTML = `<img src="${proofShot.pic}" alt="ডেলিভারির ছবি">`;
+      document.getElementById('r-proof-label').textContent = '✓ ছবি তোলা হয়েছে, আবার তুলতে চাপুন';
+      document.getElementById('r-pin-err').textContent = '';
+    } catch (ex) { document.getElementById('r-pin-err').textContent = ex.message; }
   }
   async function onPaper(input) {
     const key = input.dataset.paper;
@@ -314,8 +334,12 @@ window.LHRider = (function () {
     if (e.target.id !== 'r-deliver') return;
     e.preventDefault();
     const pin = document.getElementById('r-pin').value.replace(/[০-৯]/g, (c) => '০১২৩৪৫৬৭৮৯'.indexOf(c));
+    const code = e.target.dataset.code;
+    const why = document.getElementById('r-nocam-why');
+    const proof = proofShot.code === code ? { pic: proofShot.pic } : { reason: why ? why.value : '' };
     try {
-      Store.riderDeliver(e.target.dataset.code, me().contact, pin);
+      Store.riderDeliver(code, me().contact, pin, proof);
+      proofShot = { code: '', pic: '' };
       U.toast('ডেলিভারি সম্পন্ন হয়েছে');
       location.hash = '#/rider/done';
     } catch (ex) {
@@ -327,7 +351,8 @@ window.LHRider = (function () {
     U = ui;
     document.addEventListener('click', onClick);
     document.addEventListener('submit', onSubmit);
-    document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.paper) onPaper(e.target); });
+    document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.paper) onPaper(e.target); if (e.target.id === 'r-proof') onProof(e.target); });
+    document.addEventListener('click', (e) => { const b = e.target.closest('[data-rider="no-cam"]'); if (!b) return; const box = document.getElementById('r-nocam'); box.hidden = !box.hidden; if (!box.hidden) document.getElementById('r-nocam-why').focus(); });
     document.addEventListener('input', (e) => { if (area && e.target.closest && e.target.closest('#r-area')) onAreaInput(e); });
   }
   return { init, page, tabs, mount, noteTitle: (kind) => (NOTE[kind] ? NOTE[kind][0] : '🔔') };

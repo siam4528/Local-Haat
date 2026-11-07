@@ -129,6 +129,7 @@ window.LHOwner = (function () {
       <p class="meta"><span>${U.payText(o)}</span>${o.big ? ' · <span>🚚 বড় জিনিস, ভ্যান বা পিকআপ আসবে</span>' : ''}</p>
       ${Store.isFinished(o) ? commissionLine(o) : ''}
       ${o.refund ? `<p class="meta o-wait">↩️ ${window.LHCare.refundText(o.refund)}</p>` : ''}
+      ${o.proof ? (o.proof.pic ? `<p class="meta proof-line"><img class="proof-thumb" src="${o.proof.pic}" alt="ডেলিভারির ছবি"> <span>ডেলিভারির ছবি</span></p>` : `<p class="meta">📷 <span>ছবি ছাড়া ডেলিভারি</span>: ${U.ud(o.proof.reason)}</p>`) : ''}
       ${Store.isFinal(o) ? '' : `<p class="o-who">👤 ${U.ud(o.recipient.name)}${o.recipient.phone ? ` · <a href="tel:${U.esc(o.recipient.phone)}">${U.bn(o.recipient.phone)}</a>` : ''}${o.mode === 'delivery' || o.book === 'quote' ? `<br>📍 ${U.ud(o.recipient.line)}` : ''}${o.when ? `<br>🗓️ ${U.fmtWhen(o.when)}` : ''}${o.serial ? `<br>🎫 সিরিয়াল ${U.bn(o.serial)}` : ''}${o.patient ? `<br>🩺 ${Store.PATIENT[o.patient]}` : ''}</p>`}
       ${o.note && !Store.isFinal(o) ? `<p class="note">${U.ud(o.note)}</p>` : ''}
       ${orderActions(o, s)}

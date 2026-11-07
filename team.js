@@ -23,6 +23,7 @@ window.LHTeam = (function () {
     'cat-approve': 'ক্যাটাগরি অনুমোদন', 'cat-refuse': 'ক্যাটাগরির অনুরোধ বাতিল', 'cat-grant': 'ক্যাটাগরি সরাসরি যোগ', 'cat-remove': 'ক্যাটাগরি বাদ',
     setting: 'সেটিং বদল', 'team-add': 'সদস্য যোগ', 'team-role': 'দায়িত্ব বদল', 'team-off': 'একাউন্ট বন্ধ', 'team-on': 'একাউন্ট চালু',
     'shop-add': 'নতুন দোকান যোগ', 'shop-approve': 'যোগ করা দোকান অনুমোদন', 'shop-refuse': 'যোগ করা দোকান বাতিল', 'shop-cat': 'মূল ক্যাটাগরি বদল', 'shop-claim': 'মালিক দোকান নিয়েছেন',
+    'proof-seen': 'ছবি ছাড়া ডেলিভারি দেখা',
     'visit-plan': 'পরিদর্শন ঠিক করা', 'visit-done': 'পরিদর্শনের ফলাফল',
     'see-phone': 'ফোন নম্বর দেখা', 'see-address': 'ঠিকানা দেখা', 'see-nid': 'এনআইডির ছবি দেখা', 'see-licence': 'ট্রেড লাইসেন্সের ছবি দেখা'
   };
@@ -76,6 +77,12 @@ window.LHTeam = (function () {
         const at = lastAt(o, ['confirmed', 'packed']);
         return { at, due: new Date(new Date(at).getTime() + 15 * MIN), title: U.ud(o.shopName), sub: `<span translate="no">#${U.bn(o.code)}</span> · ${U.geo(Store.shopById(o.shopId).area)}`, href: '#/admin/order/' + o.code };
       }));
+    }
+    // deliveries handed over without a picture, for the team to look at
+    if (can('assign')) {
+      add('noshot', '📷', 'ছবি ছাড়া ডেলিভারি', '#/admin', '২৪ ঘণ্টা', D().orders.filter((o) => o.proof && !o.proof.pic && !o.proof.seen && can('assign', Store.shopById(o.shopId))).map((o) => ({
+        at: o.proof.at, due: new Date(new Date(o.proof.at).getTime() + 24 * HOUR), title: U.ud(o.shopName), sub: `<span translate="no">#${U.bn(o.code)}</span> · ${U.ud(o.proof.reason)}`, href: '#/admin/order/' + o.code
+      })));
     }
     if (can('support')) {
       const mine = D().support.filter((t) => can('support', Store.placeOfTicket(t)));
@@ -179,6 +186,7 @@ window.LHTeam = (function () {
             ${o.recipient.phone ? `<p>📞 ${customer ? phoneHtml(o.recipient.phone, 'o' + o.code, t) : `<span translate="no">${U.bn(U.esc(o.recipient.phone))}</span>`}</p>` : ''}
             ${o.recipient.line ? `<p>📍 ${customer ? lineHtml(o.recipient.line, 'o' + o.code, t) : U.ud(o.recipient.line)}</p>` : ''}
             ${o.delivery ? `<p>🛵 ${U.ud(o.delivery.name)} · <span translate="no">${U.bn(o.delivery.phone)}</span></p>` : ''}</section>
+          ${o.proof ? `<section class="panel proof"><h2 class="tight">📷 ডেলিভারির প্রমাণ</h2>${o.proof.pic ? `<img class="proof-pic" src="${o.proof.pic}" alt="ডেলিভারির সময় তোলা ছবি">` : `<p class="warn"><span>ছবি ছাড়া ডেলিভারি</span>: ${U.ud(o.proof.reason)}</p>${o.proof.seen ? `<p class="meta">✓ <span>দেখেছেন</span>: ${U.ud(o.proof.seen.by)} · ${U.fmtTime(o.proof.seen.at)}</p>` : Store.can('assign', t) ? `<button type="button" class="btn sm" data-team="proof-seen" data-id="${o.code}">✓ দেখেছি</button>` : ''}`}<p class="meta">${U.fmtTime(o.proof.at)}</p></section>` : ''}
         </div>
         <aside class="panel bill"><h2 class="tight">অর্ডারের বিবরণ</h2>
           <ul class="mini">${o.lines.map((l) => `<li><span>${U.bn(l.qty)} × ${U.ud(l.name)}</span><b>${l.price ? U.tk(l.price * l.qty) : 'দাম পরে'}</b></li>`).join('')}</ul>
@@ -293,6 +301,7 @@ window.LHTeam = (function () {
         case 'off': offSheet(d.id, false); break;
         case 'on': offSheet(d.id, true); break;
         case 'more': aud.limit += 100; U.route(true); break;
+        case 'proof-seen': Store.teamProofSeen(d.id, ''); U.toast('দেখা হয়েছে'); U.route(true); break;
       }
     } catch (ex) { U.toast(ex.message); }
   }

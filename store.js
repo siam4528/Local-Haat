@@ -1670,12 +1670,40 @@ window.LHStore = (function () {
     sendToRider(o);
     save();
   }
-  function riderDeliver(code, phone, pin) {
+  // Handing over: the customer's code, and a picture of the goods or the door (no one's face is needed).
+  // Without a working camera the delivery man writes why; the team sees those in its work list.
+  function riderDeliver(code, phone, pin, proof) {
     const o = orderBy(code);
     if (!o.delivery || o.delivery.phone !== phone) fail('এই অর্ডার আপনার নয়');
     if (o.status !== 'out_for_delivery') fail('আগে "পণ্য নিয়েছি" চাপুন');
     if (String(pin).trim() !== o.pin) fail('কোড মেলেনি। গ্রাহকের কাছ থেকে ৪ সংখ্যার কোড নিন');
+    const pic = proof && typeof proof.pic === 'string' && /^data:image\/(webp|jpeg|png);base64,/.test(proof.pic) ? proof.pic : '';
+    const why = pic ? '' : words(proof && proof.reason).slice(0, 200);
+    if (!pic && why.length < 5) fail('ডেলিভারির ছবি তুলুন, অথবা ছবি না তোলার কারণ লিখুন');
+    const at = new Date().toISOString();
+    o.proof = pic ? { pic, at } : { reason: why, at, seen: null };
     push(o, 'delivered', 'delivery');
+  }
+  // The picture is for the customer who ordered, the shop and the team only; anyone else gets nothing.
+  function proofOf(code) {
+    const o = data.orders.find((x) => x.code === code);
+    if (!o || !o.proof) return null;
+    const cust = data.sessions.customer && data.sessions.customer === o.customerId;
+    const owner = data.accounts.find((a) => a.id === data.sessions.owner && a.role === 'owner');
+    const shop = !!owner && owner.shopId === o.shopId;
+    const team = can('orders', placeOfOrder(o)) || can('assign', placeOfOrder(o));
+    return cust || shop || team ? o.proof : null;
+  }
+  // the team has looked at a delivery handed over without a picture
+  function teamProofSeen(code, note) {
+    const o = orderBy(code);
+    const me = need('assign', placeOfOrder(o));
+    if (!o.proof || o.proof.pic) fail('এই ডেলিভারির ছবি আছে');
+    if (o.proof.seen) fail('আগেই দেখা হয়েছে');
+    const why = words(note).slice(0, 200);
+    o.proof.seen = { by: me.name, at: new Date().toISOString(), note: why };
+    audit('proof-seen', placeOfOrder(o), why);
+    save();
   }
   // The delivery man's phone shares where he is while the goods are on the way. Only that order's customer sees it,
   // and push() wipes it when the job ends. False when sharing must stop.
@@ -2560,6 +2588,7 @@ window.LHStore = (function () {
     saveItem, deleteItem, setShopImage,
     canReorder, reorderPlan,
     teamAddShop, teamCheckShop, teamSetMainCat, listingFor, claimShop, visitPlan, visitDone, kindOfSub,
+    proofOf, teamProofSeen,
     session(role) { return data.accounts.find((a) => a.id === data.sessions[role]) || null; },
     setSession(role, acc) { if (acc) data.sessions[role] = acc.id; else delete data.sessions[role]; save(); }
   };

@@ -1111,6 +1111,7 @@
             ${o.paid ? `<p class="good">${PAY_DONE[o.paid.method]}</p><p class="meta">ট্রানজেকশন আইডি: <span translate="no">${esc(o.paid.trx)}</span></p>` : `<p class="note">${o.pay === 'cod' ? 'জিনিস হাতে পেয়ে টাকা দিন।' : o.pay === 'bus' ? 'বাসে উঠে সুপারভাইজারকে ভাড়া দিন।' : o.pay === 'counter' ? 'কাউন্টারে নগদ দেওয়া হয়েছে।' : 'দোকানে টাকা দিন।'}</p>`}
             ${shop ? `<div class="contact"><a class="btn ghost" href="tel:${esc(shop.phone)}">📞 দোকানে কল</a><a class="btn ghost" href="#/chat/${shop.id}">💬 চ্যাট</a></div>` : ''}
           </section>
+          ${mine ? proofHtml(o) : ''}
           ${mine && Store.canReorder(o) ? `<button type="button" class="btn block re-again" data-action="reorder" data-code="${o.code}">🔁 আবার অর্ডার করুন</button>` : ''}
           ${mine ? Rate.panel(o) : ''}
           ${mine ? Care.refundPanel(o) : ''}
@@ -1131,6 +1132,13 @@
     return `<h1 class="page-h">আপনার অর্ডার</h1><div class="stack">
       ${mine.map((o) => `<div class="order-wrap"><a class="panel order" href="#/track/${o.code}"><span><b>${ud(o.shopName)}</b><small><span translate="no">${bn(o.code)}</span> · ${tk(o.total)}</small></span><span class="order-tags"><span class="tag ${Store.isFinal(o) ? '' : 'ok'}">${Store.label(o, o.status)}</span>${Rate.unrated(o) ? '<span class="tag rate-ask">⭐ রেটিং দিন</span>' : ''}</span></a>${Store.canReorder(o) ? `<button type="button" class="btn ghost sm re-btn" data-action="reorder" data-code="${o.code}">🔁 আবার অর্ডার</button>` : ''}</div>`).join('')}
     </div>`;
+  }
+  // the picture the delivery man took at handing over, or why there is none
+  function proofHtml(o) {
+    const p = Store.proofOf(o.code);
+    if (!p) return '';
+    return p.pic ? `<section class="panel proof"><h2 class="tight">📷 ডেলিভারির ছবি</h2><img class="proof-pic" src="${p.pic}" alt="ডেলিভারির সময় তোলা ছবি"><p class="meta">${fmtTime(p.at)} · <span>শুধু আপনি, দোকান ও লোকালহাট টিম দেখতে পান</span></p></section>`
+      : `<p class="note">📷 <span>ডেলিভারি ম্যান ছবি তুলতে পারেননি</span>: ${ud(p.reason)}</p>`;
   }
   /* ---------- order again ---------- */
   const REORDER_STATE = {
