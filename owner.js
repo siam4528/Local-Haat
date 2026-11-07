@@ -51,7 +51,40 @@ window.LHOwner = (function () {
     else if (tab === 'route' && Store.setupOf(s) === 'bus') body = routePage(s, parts[1]);
     else if (tab === 'trips' && !parts[1] && Store.setupOf(s) === 'bus') body = tripsPage(s);
     else if (tab === 'report' && !parts[1]) body = window.LHReport.shopPage(s.id, false);
+    else if (tab === 'rx' && parts[1] && !parts[2]) body = rxPage(s, parts[1]);
     return body === null ? null : `<div class="panel-page">${banner}${body}</div>`;
+  }
+
+  /* ---------- a prescription: the pharmacy's list ---------- */
+  let rxRows = [];
+  let rxFor = '';
+  const rxSub = () => rxRows.reduce((a, r) => a + (Number(r.price) || 0) * (Number(r.qty) || 0), 0);
+  function rxPage(s, code) {
+    const o = Store.data.orders.find((x) => x.code === code && x.shopId === s.id && x.rx);
+    if (!o) return null;
+    if (rxFor !== code) { rxFor = code; rxRows = (o.rx.list || []).map((r) => Object.assign({}, r)); }
+    const open = o.status === 'placed' && ['ask', 'list'].includes(o.rx.stage);
+    const meds = s.items.filter((it) => it.available);
+    const pics = Store.rxPics(code);
+    return `<a class="back" href="#/owner">‹ অর্ডার</a><h1 class="page-h">📄 প্রেসক্রিপশন</h1>
+      <section class="panel"><p><b>${U.ud(o.recipient.name)}</b> · <a href="tel:${U.esc(o.recipient.phone)}" translate="no">${U.bn(o.recipient.phone)}</a></p>
+        <p class="meta">📍 ${U.ud(o.recipient.line)}</p>${o.note ? `<p class="note">${U.ud(o.note)}</p>` : ''}
+        <div class="rx-pics">${pics.map((x) => `<a href="${x}" target="_blank" rel="noopener"><img src="${x}" alt="প্রেসক্রিপশনের ছবি"></a>`).join('')}</div>
+        <p class="meta">ছবি শুধু আপনি ও রোগী দেখতে পান।</p></section>
+      ${open ? `<section class="panel gap-t"><h2 class="tight">তালিকা</h2>
+        ${rxRows.length ? `<ul class="re-list">${rxRows.map((r, i) => `<li class="re-row rx-row"><span class="re-pick"><span><b>${U.ud(r.name)}</b>${r.unit ? `<small>${U.ud(r.unit)}</small>` : ''}${r.rx ? '<small class="rx-tag">📄 প্রেসক্রিপশন লাগবে</small>' : ''}</span></span>
+          <span class="rx-edit"><label><span class="sr">পরিমাণ</span><input type="number" min="1" max="99" value="${r.qty}" data-rx-qty="${i}" aria-label="পরিমাণ"></label><span aria-hidden="true">×</span><label><span class="sr">দাম</span><input type="number" min="1" value="${r.price}" data-rx-price="${i}" aria-label="দাম (৳)"></label><button type="button" class="inline danger-txt" data-own="rx-del" data-i="${i}">বাদ দিন</button></span></li>`).join('')}</ul>
+          <div class="sum total"><span>ওষুধের দাম</span><b id="rx-o-sub">${U.tk(rxSub())}</b></div>` : '<p class="meta">এখনো কিছু যোগ করা হয়নি।</p>'}
+        <h3 class="loc-h">আপনার পণ্য থেকে যোগ করুন</h3>
+        <input id="rx-find" type="search" maxlength="40" placeholder="ওষুধ খুঁজুন" aria-label="ওষুধ খুঁজুন">
+        <ul class="rx-meds" id="rx-meds">${meds.map((it) => `<li data-name="${U.esc(it.name.toLowerCase())}"><span>${it.icon} ${U.ud(it.name)} <small>${U.ud(it.unit)} · ${U.tk(it.price)}</small>${it.rx ? '<small class="rx-tag">📄 প্রেসক্রিপশন লাগবে</small>' : ''}</span><button type="button" class="btn ghost sm" data-own="rx-add" data-id="${it.id}">+ যোগ</button></li>`).join('')}</ul>
+        <h3 class="loc-h">তালিকায় নেই এমন ওষুধ লিখুন</h3>
+        <div class="rx-free"><input id="rxf-name" type="text" maxlength="80" placeholder="ওষুধের নাম" aria-label="ওষুধের নাম"><input id="rxf-unit" type="text" maxlength="30" placeholder="একক" aria-label="একক">
+          <input id="rxf-qty" type="number" min="1" max="99" value="1" aria-label="পরিমাণ"><input id="rxf-price" type="number" min="1" placeholder="দাম ৳" aria-label="দাম (৳)">
+          <label class="chk"><input type="checkbox" id="rxf-rx"><span>প্রেসক্রিপশন লাগবে</span></label><button type="button" class="btn ghost sm" data-own="rx-free">+ তালিকায় যোগ</button></div>
+        <small class="err" id="rx-o-err" role="alert"></small>
+        <button type="button" class="btn block sheet-go" data-own="rx-send">📋 তালিকা ও দাম পাঠান</button>
+      </section>` : '<p class="note gap-t">রোগী তালিকা নিশ্চিত করেছেন। অর্ডারের তালিকায় দেখুন।</p>'}`;
   }
 
   /* ---------- orders ---------- */
@@ -100,6 +133,9 @@ window.LHOwner = (function () {
     // a launch ticket: boarded from the trip's list; cancelling it here pays it all back
     if (o.book === 'launch') return o.status === 'confirmed' ? `<div class="o-acts"><a class="btn" href="#/owner/counter/${o.launch.trip}/pass">🧾 যাত্রীর তালিকা</a>${cancel}</div>` : '';
     if (o.book) return bookingActions(o, cancel);
+    // a prescription: the pharmacy looks at the pictures and sends one list with prices; the patient confirms
+    if (o.rx && o.rx.stage === 'ask') return `<div class="o-acts"><a class="btn" href="#/owner/rx/${o.code}">📄 প্রেসক্রিপশন দেখে তালিকা বানান</a>${cancel}</div>`;
+    if (o.rx && o.rx.stage === 'list') return `<p class="meta o-wait">⏳ তালিকা পাঠানো হয়েছে, রোগীর নিশ্চিতের অপেক্ষায়।</p><div class="o-acts"><a class="btn ghost" href="#/owner/rx/${o.code}">তালিকা বদলান</a>${cancel}</div>`;
     if (o.status === 'placed') {
       return `${o.mode === 'delivery' ? '<p class="meta o-wait">গ্রহণ করলে লোকালহাটের ডেলিভারি ম্যান অটোমেটিক খবর পাবেন।</p>' : ''}<div class="o-acts"><button type="button" class="btn" data-own="accept" data-code="${o.code}">✓ অর্ডার গ্রহণ করুন</button>${cancel}</div>`;
     }
@@ -119,7 +155,7 @@ window.LHOwner = (function () {
     return `<p class="meta">📊 <span>লোকালহাট কমিশন</span> <span>${U.bn(rate)}%</span>: ${U.tk(m.commission)} · <span>আপনার আয়</span> ${U.tk((o.mode === 'service' ? o.total : o.sub) - m.commission)}</p>`;
   }
   function orderCard(o, s) {
-    const modeTxt = o.book === 'launch' ? '🛳️ লঞ্চের টিকেট' : o.trip ? '🚚 ট্রিপ বুকিং' : o.book ? '🗓️ বুকিং' : o.mode === 'pickup' ? '🏪 দোকান থেকে নেবেন' : o.mode === 'service' ? '🗓️ সেবা' : '🛵 বাসায় ডেলিভারি';
+    const modeTxt = o.rx && o.rx.stage !== 'cart' ? '📄 প্রেসক্রিপশন' : o.book === 'launch' ? '🛳️ লঞ্চের টিকেট' : o.trip ? '🚚 ট্রিপ বুকিং' : o.book ? '🗓️ বুকিং' : o.mode === 'pickup' ? '🏪 দোকান থেকে নেবেন' : o.mode === 'service' ? '🗓️ সেবা' : '🛵 বাসায় ডেলিভারি';
     return `<article class="panel o-card" id="o-${o.code}">
       <div class="o-head"><div><b translate="no">#${U.bn(o.code)}</b><small>${U.fmtTime(o.createdAt)} · ${modeTxt}</small></div><span class="tag ${Store.isFinal(o) ? '' : 'ok'}">${Store.label(o, o.status)}</span></div>
       <ul class="mini">${o.lines.map((l) => `<li><span>${l.icon} ${U.bn(l.qty)} × ${U.ud(l.name)}</span><b>${l.price ? U.tk(l.price * l.qty) : 'দাম পরে'}</b></li>`).join('')}</ul>
@@ -227,6 +263,7 @@ window.LHOwner = (function () {
           <label class="field"><span>প্রতি সময়ে কতজন / কয়টি সিট</span><input id="it-cap" type="text" inputmode="numeric" value="${it && it.cap ? U.bn(it.cap) : ''}"><small class="err" id="it-cap-err"></small></label>
           <label class="switch"><input type="checkbox" id="it-multi" ${it && it.multi ? 'checked' : ''}><span>একজন একাধিক নিতে পারবেন (যেমন বাসের সিট)</span></label>
         </div>
+        ${Store.isPharmacy(s) ? `<label class="switch gap-b"><input type="checkbox" id="it-rx" ${it && it.rx ? 'checked' : ''}><span>📄 প্রেসক্রিপশন লাগবে (শুধু প্রেসক্রিপশনের ছবিসহ অর্ডার)</span></label>` : ''}
         <fieldset class="field fs"><legend>আইকন</legend><div class="icon-pick">${(it && !ICONS.includes(it.icon) ? [it.icon] : []).concat(ICONS).map((ic, i) => `<label><input type="radio" name="it-icon" value="${ic}" ${(it ? it.icon === ic : i === 0) ? 'checked' : ''}><span>${ic}</span></label>`).join('')}</div></fieldset>
         <button type="submit" class="btn block sheet-go">সংরক্ষণ করুন</button>
       </form>
@@ -493,6 +530,21 @@ window.LHOwner = (function () {
     try {
       switch (d.own) {
         case 'order-tab': orderTab = d.id; U.route(true); break;
+        case 'rx-add': { const it = s.items.find((x) => x.id === d.id); if (it && !rxRows.some((r) => r.itemId === it.id)) rxRows.push({ itemId: it.id, name: it.name, unit: it.unit, qty: 1, price: it.price, rx: !!it.rx }); U.route(true); break; }
+        case 'rx-del': rxRows.splice(Number(d.i), 1); U.route(true); break;
+        case 'rx-free': {
+          const name = document.getElementById('rxf-name').value.trim();
+          const price = Number(document.getElementById('rxf-price').value);
+          const qty = Number(document.getElementById('rxf-qty').value) || 1;
+          if (name.length < 2) { document.getElementById('rx-o-err').textContent = 'ওষুধের নাম লিখুন'; break; }
+          if (!Number.isInteger(price) || price < 1) { document.getElementById('rx-o-err').textContent = 'দাম সংখ্যায় দিন'; break; }
+          rxRows.push({ itemId: '', name, unit: document.getElementById('rxf-unit').value.trim(), qty, price, rx: document.getElementById('rxf-rx').checked });
+          U.route(true);
+          break;
+        }
+        case 'rx-send':
+          try { Store.rxQuote(rxFor, rxRows.map((r) => ({ itemId: r.itemId, name: r.name, unit: r.unit, qty: Number(r.qty), price: Number(r.price), rx: r.rx }))); rxFor = ''; U.toast('তালিকা ও দাম পাঠানো হয়েছে'); location.hash = '#/owner'; } catch (ex) { document.getElementById('rx-o-err').textContent = ex.message; }
+          break;
         case 'rt-pin':
           rd.active = Number(d.i);
           document.querySelectorAll('.rt-stop').forEach((li, i) => li.classList.toggle('on', i === rd.active));
@@ -615,7 +667,7 @@ window.LHOwner = (function () {
       // a big item goes by van or pickup; only a shop's products are delivered at all
       const bigBox = document.getElementById('it-big');
       const big = !!(bigBox && !document.getElementById('it-big-wrap').hidden && bigBox.checked && !book) || undefined;
-      try { Store.saveItem(s.id, itemDraft, { name, sub, book, trip, vehicle, big, ...fixed, price: +price, unit: document.getElementById('it-unit').value.trim() || (kindOfSub(sub) === 'service' ? 'প্রতি সেবা' : '১ পিস'), icon: e.target.elements['it-icon'].value, ...(itemImage === undefined ? {} : { image: itemImage }) }); } catch (ex) { return show('it-img-err', ex.message, 'it-name'); }
+      try { Store.saveItem(s.id, itemDraft, { name, sub, book, trip, vehicle, big, rx: (document.getElementById('it-rx') || {}).checked || undefined, ...fixed, price: +price, unit: document.getElementById('it-unit').value.trim() || (kindOfSub(sub) === 'service' ? 'প্রতি সেবা' : '১ পিস'), icon: e.target.elements['it-icon'].value, ...(itemImage === undefined ? {} : { image: itemImage }) }); } catch (ex) { return show('it-img-err', ex.message, 'it-name'); }
       U.closeSheet();
       U.toast(Store.subChoices(s).some((x) => x.sub === sub && x.state === 'wait') ? 'সংরক্ষিত। বিভাগ অনুমোদন হলে গ্রাহক দেখতে পাবেন।' : 'সংরক্ষিত');
       U.route(true);
@@ -712,6 +764,17 @@ window.LHOwner = (function () {
     document.addEventListener('click', onClick);
     document.addEventListener('submit', onSubmit);
     document.addEventListener('change', onChange);
+    // the pharmacy's list: quantities and prices typed in, the products filtered by name
+    document.addEventListener('input', (e) => {
+      const t = e.target;
+      if (t.dataset && (t.dataset.rxQty !== undefined || t.dataset.rxPrice !== undefined)) {
+        const r = rxRows[Number(t.dataset.rxQty !== undefined ? t.dataset.rxQty : t.dataset.rxPrice)];
+        if (r) { if (t.dataset.rxQty !== undefined) r.qty = Number(t.value); else r.price = Number(t.value); }
+        const box = document.getElementById('rx-o-sub');
+        if (box) box.textContent = U.tk(rxSub());
+      }
+      if (t.id === 'rx-find') { const q = t.value.trim().toLowerCase(); document.querySelectorAll('#rx-meds li').forEach((li) => { li.hidden = !!q && !li.dataset.name.includes(q); }); }
+    });
     document.addEventListener('input', (e) => { if (e.target.dataset && (e.target.dataset.rt || (e.target.dataset.rs && e.target.dataset.rs !== 'counter'))) onRouteInput(e); });
   }
   return { init, page, tabs, mount };

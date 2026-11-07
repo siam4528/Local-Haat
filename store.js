@@ -75,7 +75,7 @@ window.LHStore = (function () {
   const RIDER = { id: 'r1', name: 'কামাল হোসেন', phone: '01911000001' };
   const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 
-  const VERSION = 15;
+  const VERSION = 16;
   const SEED_DELIVERY_FEE = 40;
   const SEED_DELIVERY_NEXT = 20;
   // v9: past the free distance each started kilometre costs more; a big item goes by van or pickup at its own rates
@@ -136,7 +136,8 @@ window.LHStore = (function () {
     acc('a-garage', 'owner', 'রহমান', 'গ্যারেজ', 'rahman.garage', '10000013', '01711000018', { shopId: 's18' }),
     acc('a-mohakhali', 'owner', 'মহাখালী', 'কাউন্টার', 'mohakhali.counter', '10000014', '01711000021', { shopId: 's21' }),
     acc('a-launch', 'owner', 'নদীবন্ধু', 'কাউন্টার', 'nodibondhu.launch', '10000015', '01711000024', { shopId: 's24' }),
-    acc('a-launch2', 'owner', 'দ্বীপ', 'কাউন্টার', 'dwip.launch', '10000016', '01711000025', { shopId: 's25' })
+    acc('a-launch2', 'owner', 'দ্বীপ', 'কাউন্টার', 'dwip.launch', '10000016', '01711000025', { shopId: 's25' }),
+    acc('a-pharmacy', 'owner', 'হাসান', 'মেডিকেল', 'hasan.medical', '10000017', '01711000003', { shopId: 's3' })
   ];
   // data saved by an older version of the prototype gets the new shops and fields, and keeps its orders and edits
   function upgrade(d) {
@@ -227,6 +228,10 @@ window.LHStore = (function () {
     d.audit = d.audit || [];
     if (d.refundLimit === undefined) d.refundLimit = SEED_REFUND_LIMIT;
     delete d.sessions.admin;
+    // v16: the demo pharmacy gets its medicines (its owner comes with NEW_OWNERS above)
+    const s3 = d.shops.find((x) => x.id === 's3');
+    const f3 = fresh.shops.find((x) => x.id === 's3');
+    if (s3 && f3) f3.items.forEach((it) => { if (!s3.items.concat(s3.waiting || []).some((x) => x.id === it.id || x.name === it.name)) s3.items.push(it); });
     demoOrders().forEach((o) => { if (!d.orders.some((x) => x.code === o.code)) d.orders.push(o); });
     d.nextNo = Math.max(d.nextNo, 10000020);
     d.v = VERSION;
@@ -456,6 +461,8 @@ window.LHStore = (function () {
     cancelled: 'বাতিল হয়েছে'
   };
   function label(o, st) {
+    if (o.rx && st === 'placed' && o.rx.stage === 'ask') return 'প্রেসক্রিপশন পাঠানো হয়েছে, তালিকা ও দামের অপেক্ষায়';
+    if (o.rx && st === 'placed' && o.rx.stage === 'list') return 'তালিকা ও দাম এসেছে, নিশ্চিত করুন';
     if (o.mode === 'pickup' && st === 'packed') return 'পণ্য প্রস্তুত, দোকান থেকে নিয়ে নিন';
     if (o.book === 'bus' && st === 'placed') return 'টিকেট চাওয়া হয়েছে';
     if (o.book === 'bus' && st === 'confirmed') return 'টিকেট নিশ্চিত';
@@ -562,6 +569,7 @@ window.LHStore = (function () {
         pin: String(Math.floor(1000 + Math.random() * 9000)), createdAt: at
       };
       if (payment) o.paid = { method: payment.method, trx: String(payment.trx || '').slice(0, 20), at };
+      if (Array.isArray(x.d.rx) && x.d.rx.some(isRxPic)) o.rx = { pics: x.d.rx.filter(isRxPic).slice(0, 3), stage: 'cart' };
       data.orders.unshift(o);
       return o;
     });
@@ -579,6 +587,8 @@ window.LHStore = (function () {
     const built = entries.map(([shopId, g]) => {
       const shop = shopById(shopId) || fail('দোকান পাওয়া যায়নি');
       const d = details[shopId] || fail('ঠিকানা দিন');
+      // a medicine that needs a prescription goes only with a picture of one
+      if (Object.keys(g.lines).some((id) => { const it = shop.items.find((x) => x.id === id); return it && it.rx; }) && !(Array.isArray(d.rx) && d.rx.some(isRxPic))) fail('"প্রেসক্রিপশন লাগবে" এমন ওষুধের জন্য প্রেসক্রিপশনের ছবি দিন');
       if (shop.listing) fail('এই দোকান এখনো অনলাইনে অর্ডার নেয় না, ফোন করুন');
       if (!canBook(shop)) fail('দোকানটি সাময়িকভাবে বন্ধ আছে');
       // an order for later: picked up, delivered or served at a time the shop is open
@@ -1614,6 +1624,7 @@ window.LHStore = (function () {
   function accept(code) {
     const o = orderBy(code);
     if (o.status !== 'placed') fail('এই ধাপ এখন করা যাবে না');
+    if (o.rx && (o.rx.stage === 'ask' || o.rx.stage === 'list')) fail('আগে তালিকা ও দাম পাঠান, রোগী নিশ্চিত করবেন');
     if (o.mode === 'delivery') sendToRider(o);
     bookingNote(o, 'confirmed');
     push(o, 'confirmed', 'shop');
@@ -1762,9 +1773,123 @@ window.LHStore = (function () {
   }
   /* ---------- ratings: only a customer's own finished order can rate, once ---------- */
   const isFinished = (o) => o.status === 'delivered' || o.status === 'completed';
+  /* ---------- medicines by prescription ---------- */
+  const isRxPic = (x) => typeof x === 'string' && /^data:image\/(webp|jpeg|png);base64,/.test(x);
+  const isPharmacy = (s) => !!s && (s.sub === 'ফার্মেসি' || extraOf(s).some((x) => x.sub === 'ফার্মেসি'));
+  // the delivery charge from the pharmacy to where the medicines go, as the cart reckons it
+  function rxFee(shop, o) {
+    const r = data.feeRules;
+    const km = Math.round(kmBetween(shop, o.recipient) * 10) / 10;
+    return data.deliveryFee + Math.max(0, Math.ceil(km - r.freeKm - 1e-9)) * r.perKm;
+  }
+  // The patient sends the prescription or a list as pictures, where to bring it (a saved address, or a hospital's ward
+  // and bed) and a phone. It waits for the pharmacy's list.
+  function rxAsk(shopId, customerId, p) {
+    const shop = shopById(shopId) || fail('দোকান পাওয়া যায়নি');
+    if (!isPharmacy(shop) || !shopLive(shop) || !canBook(shop)) fail('এই ফার্মেসি এখন প্রেসক্রিপশন নিচ্ছে না');
+    const me = data.accounts.find((a) => a.id === customerId && a.role === 'customer') || fail('প্রেসক্রিপশন পাঠাতে লগইন করুন');
+    if (!me.verified) fail('আগে একাউন্ট ভেরিফাই করুন');
+    const pics = (Array.isArray(p.pics) ? p.pics : []).filter(isRxPic).slice(0, 3);
+    if (!pics.length) fail('প্রেসক্রিপশন বা ওষুধের তালিকার ছবি দিন');
+    const name = words(p.name).slice(0, 60);
+    if (name.length < 2) fail('যিনি নেবেন তাঁর নাম লিখুন।');
+    const phone = String(p.phone || '').replace(/[\s-]/g, '');
+    if (!/^01[3-9]\d{8}$/.test(phone)) fail('১১ সংখ্যার মোবাইল নম্বর লিখুন, যেমন 017XXXXXXXX।');
+    const place = placeById(p.place);
+    let line;
+    let hospital = null;
+    if (p.hospital !== undefined && p.hospital !== null) {
+      hospital = { name: words(p.hospital).slice(0, 80), ward: words(p.ward).slice(0, 20), bed: words(p.bed).slice(0, 20) };
+      if (hospital.name.length < 3) fail('হাসপাতালের নাম লিখুন');
+      if (!hospital.ward) fail('ওয়ার্ড লিখুন');
+      if (!hospital.bed) fail('বেড নম্বর লিখুন');
+      line = hospital.name + ', ওয়ার্ড ' + hospital.ward + ', বেড ' + hospital.bed;
+    } else {
+      line = words(p.line || place.line).slice(0, 150);
+      if (line.length < 5) fail('পুরো ঠিকানা লিখুন');
+    }
+    const at = new Date().toISOString();
+    const o = {
+      code: newCode(), group: 'g' + Date.now().toString(36), shopId: shop.id, shopName: shop.name, shopIcon: shop.icon, customerId, mode: 'delivery',
+      placeLabel: hospital ? hospital.name : place.label, recipient: { name, phone, line, lat: place.lat, lng: place.lng }, note: words(p.note).slice(0, 300), when: '',
+      lines: [], sub: 0, fee: 0, discount: 0, offerCode: '', total: 0, pay: 'cod', km: Math.round(kmBetween(shop, place) * 10) / 10, big: false, rate: data.commission,
+      status: 'placed', history: [{ status: 'placed', at, by: 'customer', note: '' }], delivery: null, pin: String(Math.floor(1000 + Math.random() * 9000)), createdAt: at,
+      rx: { pics, stage: 'ask', place: place.id, hospital }
+    };
+    data.orders.unshift(o);
+    notifyShop(o, 'rx');
+    save();
+    return o;
+  }
+  // only the patient and that pharmacy see the pictures: not the team, a delivery man or another shop
+  function rxPics(code) {
+    const o = data.orders.find((x) => x.code === code);
+    if (!o || !o.rx) return [];
+    const cust = !!data.sessions.customer && data.sessions.customer === o.customerId;
+    const owner = data.accounts.find((a) => a.id === data.sessions.owner && a.role === 'owner');
+    return cust || (owner && owner.shopId === o.shopId) ? o.rx.pics : [];
+  }
+  const myRxOrder = (code) => {
+    const o = data.orders.find((x) => x.code === code) || fail('অর্ডার পাওয়া যায়নি');
+    const owner = data.accounts.find((a) => a.id === data.sessions.owner && a.role === 'owner');
+    if (!owner || owner.shopId !== o.shopId || !o.rx) fail('এই অর্ডার আপনার দোকানের নয়');
+    return o;
+  };
+  // The pharmacy's one list: medicines from its own products or written in, each with a quantity and a price.
+  // It can send the list again until the patient confirms.
+  function rxQuote(code, rows) {
+    const o = myRxOrder(code);
+    if (o.status !== 'placed' || !['ask', 'list'].includes(o.rx.stage)) fail('এই তালিকা আর বদলানো যাবে না');
+    const shop = shopById(o.shopId);
+    if (!Array.isArray(rows) || !rows.length) fail('তালিকায় অন্তত একটি ওষুধ দিন');
+    if (rows.length > 40) fail('একটি তালিকায় ৪০টির বেশি ওষুধ নয়');
+    const list = rows.map((r) => {
+      const qty = Number(r.qty);
+      if (!Number.isInteger(qty) || qty < 1 || qty > 99) fail('পরিমাণ ১ থেকে ৯৯ এর মধ্যে দিন');
+      const it = r.itemId ? shop.items.find((x) => x.id === r.itemId) || fail('পণ্য পাওয়া যায়নি') : null;
+      const name = it ? it.name : words(r.name).slice(0, 80);
+      if (name.length < 2) fail('ওষুধের নাম লিখুন');
+      const price = Number(r.price === '' || r.price === undefined ? (it ? it.price : NaN) : r.price);
+      if (!Number.isInteger(price) || price < 1 || price > 100000) fail('দাম সংখ্যায় দিন');
+      return { itemId: it ? it.id : '', name, unit: it ? it.unit : words(r.unit).slice(0, 30), qty, price, rx: it ? !!it.rx : !!r.rx };
+    });
+    o.rx.list = list;
+    o.rx.fee = rxFee(shop, o);
+    o.rx.stage = 'list';
+    o.rx.listAt = new Date().toISOString();
+    notify(o.customerId, 'rx-list', o.code);
+    save();
+    return o;
+  }
+  // The patient keeps some of the list (by its rows) and confirms: the order goes on with the delivery charge,
+  // cash on delivery or paid online. The pharmacy has already said yes by sending the list.
+  function rxBill(o, customerId, keep) {
+    if (o.customerId !== customerId) fail('এই অর্ডার আপনার নয়');
+    if (!o.rx || o.rx.stage !== 'list') fail('এই তালিকা এখন নিশ্চিত করা যাবে না');
+    const rows = (Array.isArray(keep) ? keep : []).map(Number).filter((i, k, a) => Number.isInteger(i) && o.rx.list[i] && a.indexOf(i) === k).map((i) => o.rx.list[i]);
+    if (!rows.length) fail('অন্তত একটি ওষুধ রাখুন');
+    const sub = rows.reduce((a, r) => a + r.price * r.qty, 0);
+    return { rows, sub, fee: o.rx.fee, total: sub + o.rx.fee };
+  }
+  const rxTotal = (code, customerId, keep) => rxBill(orderBy(code), customerId, keep).total;
+  function rxConfirm(code, customerId, keep, payment) {
+    const o = orderBy(code);
+    const bill = rxBill(o, customerId, keep);
+    if (payment && !PAID_WORD[payment.method]) fail('কিভাবে টাকা দেবেন, বেছে নিন');
+    o.lines = bill.rows.map((r) => ({ itemId: r.itemId, name: r.name, unit: r.unit, price: r.price, icon: '💊', qty: r.qty, rx: r.rx || undefined }));
+    Object.assign(o, { sub: bill.sub, fee: bill.fee, total: bill.total, pay: payment ? payment.method : 'cod' });
+    if (payment) o.paid = { method: payment.method, trx: String(payment.trx || '').slice(0, 20), at: new Date().toISOString() };
+    o.rx.stage = 'ok';
+    o.rx.kept = bill.rows.length;
+    sendToRider(o);
+    push(o, 'confirmed', 'customer');
+    notifyShop(o, 'rx-ok');
+    save();
+    return o;
+  }
   // An earlier order to order again: only a finished shop order (not a booking or a ticket). Each line at today's price,
   // or why it cannot come: gone from the shop, out of stock. The shop may not be taking orders, or only for later.
-  const canReorder = (o) => isFinished(o) && !o.book && o.mode !== 'service';
+  const canReorder = (o) => isFinished(o) && !o.book && !o.rx && o.mode !== 'service';
   function reorderPlan(code) {
     const o = data.orders.find((x) => x.code === code) || fail('অর্ডার পাওয়া যায়নি');
     if (!canReorder(o)) fail('এই অর্ডার আবার করা যায় না');
@@ -2589,6 +2714,7 @@ window.LHStore = (function () {
     canReorder, reorderPlan,
     teamAddShop, teamCheckShop, teamSetMainCat, listingFor, claimShop, visitPlan, visitDone, kindOfSub,
     proofOf, teamProofSeen,
+    isPharmacy, rxAsk, rxPics, rxQuote, rxTotal, rxConfirm,
     session(role) { return data.accounts.find((a) => a.id === data.sessions[role]) || null; },
     setSession(role, acc) { if (acc) data.sessions[role] = acc.id; else delete data.sessions[role]; save(); }
   };

@@ -694,7 +694,7 @@
     return `<li class="pcard ${it.available ? '' : 'off'}">
       <div class="pcard-pic">${it.image ? `<img src="${it.image}" alt="${ud(it.name)}">` : `<span aria-hidden="true">${it.icon}</span>`}${it.available ? '' : '<em class="closed">স্টক নেই</em>'}</div>
       <div class="pcard-body">
-        <b>${ud(it.name)}</b><small>${ud(it.unit)}</small>
+        <b>${ud(it.name)}</b><small>${ud(it.unit)}</small>${it.rx ? '<small class="rx-tag">📄 প্রেসক্রিপশন লাগবে</small>' : ''}
         ${it.big ? '<small class="big-tag">🚚 বড় জিনিস, ভ্যানে যাবে</small>' : ''}
         ${showShop ? `<a class="pcard-shop" href="#/shop/${s.id}">🏪 ${ud(s.name)}${Store.openNow(s) ? '' : ' · বন্ধ'}</a>` : ''}
         ${Book.bookNote(it)}
@@ -784,6 +784,7 @@
             ${s.listing ? '' : `<a class="btn ghost" href="#/chat/${s.id}">💬 চ্যাট করুন</a>`}
             <a class="btn ghost" href="${Map_.directions(s.lat, s.lng)}" target="_blank" rel="noopener">🧭 পথ দেখুন</a>
           </div>
+          ${Store.isPharmacy(s) && Store.canBook(s) ? `<a class="btn block rx-btn" href="#/rx/${s.id}">📄 প্রেসক্রিপশন পাঠান</a>` : ''}
           ${later ? '<p class="note gap-t">🕒 দোকান এখন বন্ধ। এখনই অর্ডার দিয়ে রাখুন: খোলার সময়ে দোকান থেকে নিন, অথবা ডেলিভারি নিন।</p>' : ''}
           ${mine ? '<a class="own-edit" href="#/owner/shop">✏️ আপনার দোকান: প্রোফাইল এডিট করুন</a>' : ''}
         </div>
@@ -889,6 +890,10 @@
           ${closed ? '<p class="note">🕒 দোকান এখন বন্ধ। খোলার সময়ের মধ্যে একটি সময় দিন, দোকান খুলে অর্ডার দেখবে।</p>' : '<small>খালি রাখলে আজই, যত তাড়াতাড়ি সম্ভব।</small>'}
           ${dateTime}</fieldset>`}
       ${!service && !pickup && !sameArea(s, p) ? `<p class="warn">এই দোকান ${geo(s.area)} এলাকায়, ঠিকানাটি ${geo(p.area)} এ। ঠিকানা মিলিয়ে নিন।</p>` : ''}
+      ${s.items.some((it) => it.rx && x.g.lines[it.id]) ? `<div class="field rx-need"><span class="flabel">📄 প্রেসক্রিপশনের ছবি</span>
+        <label class="btn ghost sm"><input type="file" accept="image/*" capture="environment" data-co-rx="${s.id}" hidden>📷 ছবি দিন</label>
+        <div class="visit-pics" id="co-rx-${s.id}">${((co.rx || {})[s.id] || []).map((p) => `<img src="${p}" alt="প্রেসক্রিপশনের ছবি">`).join('')}</div>
+        <small>"প্রেসক্রিপশন লাগবে" এমন ওষুধ আছে। ছবি শুধু এই ফার্মেসি দেখবে।</small></div>` : ''}
       <label class="field"><span>দোকানের জন্য নোট (ঐচ্ছিক)</span><textarea id="c-note-${s.id}" data-co="note:${s.id}" rows="2" maxlength="300" placeholder="যেমন: গেটের পাশে দিয়ে আম্মুকে ফোন দেবেন">${esc(co.note[s.id] || '')}</textarea></label>
     </div>`;
   }
@@ -1101,7 +1106,8 @@
           </section>` : ''}
           ${o.delivery && !Store.isFinal(o) ? `<section class="panel"><h2 class="tight">ডেলিভারি ম্যান</h2><p>🛵 ${ud(o.delivery.name)} · <a class="inline-link" href="#/profile/rider/${Store.hash(o.delivery.phone)}">${Rate.badge('rider', o.delivery.phone, 'নতুন')}</a></p><a class="btn ghost block" href="tel:${esc(o.delivery.phone)}">📞 কল করুন</a></section>` : ''}
           ${o.mode === 'delivery' && !o.delivery && !Store.isFinal(o) && o.status !== 'placed' ? '<section class="panel"><h2 class="tight">ডেলিভারি ম্যান</h2><p>🛵 ডেলিভারি ম্যান খোঁজা হচ্ছে।</p></section>' : ''}
-          <section class="panel">
+          ${o.rx && o.rx.stage !== 'cart' ? rxTrackHtml(o, mine) : ''}
+          <section class="panel" ${o.rx && ['ask', 'list'].includes(o.rx.stage) ? 'hidden' : ''}>
             <h2 class="tight">অর্ডারের বিবরণ</h2>
             ${o.book ? Book.billHtml(o) : `<ul class="mini">${o.lines.map((l) => `<li><span>${bn(l.qty)} × ${ud(l.name)}</span><b>${l.price ? tk(l.price * l.qty) : 'দাম পরে'}</b></li>`).join('')}</ul>
             ${o.when ? `<p class="meta">সময়: ${fmtWhen(o.when)}</p>` : ''}
@@ -1139,6 +1145,64 @@
     if (!p) return '';
     return p.pic ? `<section class="panel proof"><h2 class="tight">📷 ডেলিভারির ছবি</h2><img class="proof-pic" src="${p.pic}" alt="ডেলিভারির সময় তোলা ছবি"><p class="meta">${fmtTime(p.at)} · <span>শুধু আপনি, দোকান ও লোকালহাট টিম দেখতে পান</span></p></section>`
       : `<p class="note">📷 <span>ডেলিভারি ম্যান ছবি তুলতে পারেননি</span>: ${ud(p.reason)}</p>`;
+  }
+  /* ---------- medicines by prescription ---------- */
+  const rxImgs = (pics) => `<div class="rx-pics">${pics.map((x) => `<a href="${x}" target="_blank" rel="noopener"><img src="${x}" alt="প্রেসক্রিপশনের ছবি"></a>`).join('')}</div>`;
+  // the patient sends pictures of the prescription or a list, where to bring it, and a phone
+  function pageRx(shopId) {
+    const s = Store.shopById(shopId);
+    if (!s || !Store.shopLive(s) || !Store.isPharmacy(s)) return null;
+    const back = `<a class="back" href="#/shop/${s.id}">‹ ${ud(s.name)}</a>`;
+    const me = meCustomer();
+    if (!me) { S.after = '#/rx/' + shopId; return back + '<div class="empty big"><span aria-hidden="true">📄</span><h1>প্রেসক্রিপশন পাঠাতে লগইন করুন</h1><a class="btn" href="#/auth/customer/login">লগইন করুন</a></div>'; }
+    if (!me.verified) return back + '<div class="empty big"><span aria-hidden="true">🔐</span><h1>আগে একাউন্ট ভেরিফাই করুন</h1><a class="btn" href="#/auth/verify/customer">ভেরিফাই করুন</a></div>';
+    if (!Store.canBook(s)) return back + '<div class="empty big"><span aria-hidden="true">📄</span><h1>এই ফার্মেসি এখন প্রেসক্রিপশন নিচ্ছে না</h1></div>';
+    if (!S.rx || S.rx.shopId !== shopId) S.rx = { shopId, pics: [], where: 'place', place: place().id, hospital: '', ward: '', bed: '', name: me.name, phone: /^01[3-9]\d{8}$/.test(me.contact || '') ? me.contact : '', note: '' };
+    const r = S.rx;
+    return `${back}<h1 class="page-h">📄 প্রেসক্রিপশন পাঠান</h1>
+      <p class="meta gap">ছবি দেখে ফার্মেসি একসাথে পুরো তালিকা বানাবে, পরিমাণ ও দামসহ। আপনি দেখে নিশ্চিত করলে তবেই অর্ডার হবে।</p>
+      <form id="rx-form" class="panel" novalidate>
+        <div class="field"><span class="flabel">প্রেসক্রিপশন বা ওষুধের তালিকার ছবি (৩টি পর্যন্ত)</span>
+          <label class="btn ghost block"><input type="file" id="rx-pic" accept="image/*" capture="environment" hidden>📷 ছবি তুলুন বা বেছে নিন</label>
+          <div id="rx-pics">${rxPickHtml()}</div>
+          <small>ছবি শুধু এই ফার্মেসি দেখবে। লোকালহাট টিম বা ডেলিভারি ম্যান দেখবে না।</small></div>
+        <fieldset class="field fs"><legend>কোথায় পৌঁছাবে</legend>
+          <label class="pay"><input type="radio" name="rx-where" value="place" ${r.where === 'place' ? 'checked' : ''}><span><b>📍 ঠিকানায়</b><small>সেভ করা ঠিকানা</small></span></label>
+          <label class="pay"><input type="radio" name="rx-where" value="hospital" ${r.where === 'hospital' ? 'checked' : ''}><span><b>🏥 হাসপাতালে</b><small>ওয়ার্ড ও বেড নম্বরসহ</small></span></label>
+        </fieldset>
+        <label class="field"><span id="rx-place-label">${r.where === 'hospital' ? 'হাসপাতাল কোন এলাকায়' : 'ঠিকানা'}</span><select id="rx-place">${allPlaces().map((x) => `<option value="${x.id}" ${x.id === r.place ? 'selected' : ''}>${placeName(x)}, ${geo(x.area)}</option>`).join('')}</select></label>
+        <div id="rx-hosp" ${r.where === 'hospital' ? '' : 'hidden'}>
+          <label class="field"><span>হাসপাতালের নাম</span><input id="rx-hospital" data-rx="hospital" type="text" maxlength="80" value="${esc(r.hospital)}"></label>
+          <div class="row2"><label class="field"><span>ওয়ার্ড</span><input id="rx-ward" data-rx="ward" type="text" maxlength="20" value="${esc(r.ward)}"></label>
+            <label class="field"><span>বেড নম্বর</span><input id="rx-bed" data-rx="bed" type="text" maxlength="20" value="${esc(r.bed)}"></label></div>
+        </div>
+        <div class="row2"><label class="field"><span>যিনি নেবেন</span><input id="rx-name" data-rx="name" type="text" maxlength="60" value="${esc(r.name)}" autocomplete="name"></label>
+          <label class="field"><span>মোবাইল নম্বর</span><input id="rx-phone" data-rx="phone" type="tel" inputmode="numeric" maxlength="14" value="${esc(r.phone)}" placeholder="01XXXXXXXXX"></label></div>
+        <label class="field"><span>নোট (ঐচ্ছিক)</span><textarea id="rx-note" data-rx="note" rows="2" maxlength="300" placeholder="যেমন: জেনেরিক হলেও চলবে">${esc(r.note)}</textarea></label>
+        <small class="err" id="rx-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">📄 প্রেসক্রিপশন পাঠান</button>
+      </form>`;
+  }
+  const rxPickHtml = () => `<div class="visit-pics">${(S.rx ? S.rx.pics : []).map((x, i) => `<span class="rx-pick"><img src="${x}" alt="প্রেসক্রিপশনের ছবি"><button type="button" data-action="rx-unpic" data-i="${i}" aria-label="ছবি সরান">✕</button></span>`).join('')}</div>`;
+  // what the patient sees: their pictures; then the pharmacy's list, to keep or drop each line and confirm
+  function rxTrackHtml(o, mine) {
+    if (!mine) return '<section class="panel"><p class="meta">📄 প্রেসক্রিপশনের অর্ডার</p></section>';
+    const pics = Store.rxPics(o.code);
+    const top = `<section class="panel"><h2 class="tight">📄 আপনার প্রেসক্রিপশন</h2>${rxImgs(pics)}<p class="meta">শুধু আপনি ও ফার্মেসি দেখতে পান।</p></section>`;
+    if (o.rx.stage === 'ask') return top + '<p class="note">⏳ ফার্মেসি ছবি দেখে তালিকা ও দাম পাঠাবে।</p>';
+    if (o.rx.stage !== 'list') return top;
+    const sub = o.rx.list.reduce((a, r) => a + r.price * r.qty, 0);
+    const radio = (v, icon, word, small, on) => `<label class="pay"><input type="radio" name="rx-pay" value="${v}" ${on ? 'checked' : ''}><span><b>${icon} ${word}</b><small>${small}</small></span></label>`;
+    return top + `<form id="rx-confirm" class="panel rx-card" data-code="${o.code}" novalidate>
+      <h2 class="tight">📋 তালিকা ও দাম</h2><p class="meta">যা লাগবে না, টিক তুলে দিন।</p>
+      <ul class="re-list">${o.rx.list.map((r, i) => `<li class="re-row"><label class="re-pick"><input type="checkbox" data-rx-keep="${i}" checked><span><b>${ud(r.name)}</b><small>${r.unit ? `${ud(r.unit)} · ` : ''}${bn(r.qty)} × ${tk(r.price)}</small>${r.rx ? '<small class="rx-tag">📄 প্রেসক্রিপশন লাগবে</small>' : ''}</span></label><span class="re-price"><b>${tk(r.price * r.qty)}</b></span></li>`).join('')}</ul>
+      <div class="sum"><span>ওষুধ</span><b id="rx-sub">${tk(sub)}</b></div>
+      <div class="sum"><span>ডেলিভারি চার্জ</span><b>${tk(o.rx.fee)}</b></div>
+      <div class="sum total"><span>মোট</span><b id="rx-total">${tk(sub + o.rx.fee)}</b></div>
+      <fieldset class="field fs"><legend>কিভাবে টাকা দেবেন?</legend>${radio('cash', '💵', 'ক্যাশ অন ডেলিভারি', 'জিনিস হাতে পেয়ে টাকা দিন', true)}${PAY_PICK.map((x) => radio(x[0], x[1], x[2], x[3], false)).join('')}</fieldset>
+      <small class="err" id="rx-c-err" role="alert"></small>
+      <button type="submit" class="btn block sheet-go">✓ নিশ্চিত করুন</button>
+    </form>`;
   }
   /* ---------- order again ---------- */
   const REORDER_STATE = {
@@ -1273,6 +1337,7 @@
     else if (page === 'track') html = pageTrack(parts[1]);
     else if (page === 'orders') html = pageOrders();
     else if (page === 'favs') html = parts[1] ? null : pageFavs();
+    else if (page === 'rx') html = parts[2] ? null : pageRx(parts[1]);
     else if (page === 'auth') html = window.LHAuth.page(parts.slice(1));
     else if (page === 'account') html = window.LHAuth.account(parts[1] || 'customer');
     else if (page === 'owner') html = window.LHOwner.page(parts.slice(1));
@@ -1399,6 +1464,7 @@
         break;
       case 'pick-place': goToPlace(d.id, d.keepq); break;
       case 'reorder': reorderSheet(d.code); break;
+      case 'rx-unpic': if (S.rx) { S.rx.pics.splice(Number(d.i), 1); $('rx-pics').innerHTML = rxPickHtml(); } break;
       case 're-step': {
         const box = $('re-q-' + d.id);
         if (box) box.value = Math.min(99, Math.max(1, (Number(box.value) || 1) + Number(d.by)));
@@ -1578,6 +1644,59 @@
       window.scrollTo(0, 0);
     }
   });
+  /* ---------- the prescription pages' events ---------- */
+  async function readRxPic(input, add) {
+    const f = input.files[0];
+    input.value = '';
+    if (!f) return;
+    try { add((await window.LHImage.readWhole(f)).image); } catch (ex) { toast(ex.message); }
+  }
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 'rx-pic' && S.rx) { readRxPic(t, (pic) => { if (S.rx.pics.length < 3) S.rx.pics.push(pic); $('rx-pics').innerHTML = rxPickHtml(); $('rx-err').textContent = ''; }); return; }
+    if (t.dataset && t.dataset.coRx) {
+      const id = t.dataset.coRx;
+      readRxPic(t, (pic) => { S.co.rx = S.co.rx || {}; const list = S.co.rx[id] || []; if (list.length < 3) list.push(pic); S.co.rx[id] = list; $('co-rx-' + id).innerHTML = list.map((p) => `<img src="${p}" alt="প্রেসক্রিপশনের ছবি">`).join(''); });
+      return;
+    }
+    if (t.name === 'rx-where' && S.rx) { S.rx.where = t.value; $('rx-hosp').hidden = t.value !== 'hospital'; $('rx-place-label').textContent = t.value === 'hospital' ? 'হাসপাতাল কোন এলাকায়' : 'ঠিকানা'; return; }
+    if (t.id === 'rx-place' && S.rx) { S.rx.place = t.value; return; }
+    if (t.dataset && t.dataset.rxKeep !== undefined) {
+      const f = t.closest('form');
+      const o = D().orders.find((x) => x.code === f.dataset.code);
+      const sub = [...f.querySelectorAll('[data-rx-keep]')].filter((b) => b.checked).reduce((a, b) => { const r = o.rx.list[Number(b.dataset.rxKeep)]; return a + r.price * r.qty; }, 0);
+      $('rx-sub').textContent = tk(sub);
+      $('rx-total').textContent = tk(sub + o.rx.fee);
+    }
+  });
+  document.addEventListener('input', (e) => { const k = e.target.dataset && e.target.dataset.rx; if (k && S.rx) S.rx[k] = e.target.value; });
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (f.id === 'rx-form') {
+      e.preventDefault();
+      const r = S.rx;
+      const me = meCustomer();
+      try {
+        const o = Store.rxAsk(r.shopId, me.id, { pics: r.pics, place: r.place, hospital: r.where === 'hospital' ? r.hospital : undefined, ward: r.ward, bed: r.bed, name: r.name, phone: String(r.phone).replace(/[০-৯]/g, (c) => DIGITS.indexOf(c)), note: r.note });
+        S.rx = null;
+        toast('প্রেসক্রিপশন পাঠানো হয়েছে');
+        location.hash = '#/track/' + o.code;
+      } catch (ex) { $('rx-err').textContent = ex.message; }
+      return;
+    }
+    if (f.id !== 'rx-confirm') return;
+    e.preventDefault();
+    const code = f.dataset.code;
+    const me = meCustomer();
+    const keep = [...f.querySelectorAll('[data-rx-keep]')].filter((b) => b.checked).map((b) => Number(b.dataset.rxKeep));
+    const method = (f.querySelector('[name=rx-pay]:checked') || {}).value || 'cash';
+    const finish = () => { toast('অর্ডার নিশ্চিত হয়েছে'); route(true); };
+    try {
+      if (method === 'cash') { Store.rxConfirm(code, me.id, keep); finish(); return; }
+      const amount = Store.rxTotal(code, me.id, keep);
+      payOnline(method, amount, (pay) => { try { Store.rxConfirm(code, me.id, keep, pay); finish(); } catch (ex) { toast(ex.message); } }, () => {});
+    } catch (ex) { $('rx-c-err').textContent = ex.message; }
+  });
   // the chosen lines go into the cart, added to what is already there for that shop
   document.addEventListener('submit', (e) => {
     if (e.target.id !== 'reorder') return;
@@ -1621,7 +1740,7 @@
         else if (!Store.openAt(x.shop, window.LHTime.at(date, time))) bad('c-when-err-' + x.id, 'ওই সময় দোকান বন্ধ থাকে, খোলার সময়ের মধ্যে দিন', 'c-date-' + x.id);
         else when = date + ' ' + time;
       }
-      details[x.id] = { placeLabel: p.label, when, note: (co.note[x.id] || '').trim(), recipient: { name: (co.name[p.id] || '').trim(), phone: phoneOf(co.phone[p.id]), line: p.custom && (co.line[p.id] || '').trim() ? co.line[p.id].trim() + ', ' + p.line : p.line, lat: p.lat, lng: p.lng } };
+      details[x.id] = { rx: (co.rx || {})[x.id] || [], placeLabel: p.label, when, note: (co.note[x.id] || '').trim(), recipient: { name: (co.name[p.id] || '').trim(), phone: phoneOf(co.phone[p.id]), line: p.custom && (co.line[p.id] || '').trim() ? co.line[p.id].trim() + ', ' + p.line : p.line, lat: p.lat, lng: p.lng } };
     });
     if (first) { first.focus(); return; }
     const who = window.LHAuth.current('customer').id;
@@ -1699,7 +1818,7 @@
   /* ---------- notifications ---------- */
   const NOTE_TEXT = {
     confirmed: '✅ দোকান অর্ডার গ্রহণ করেছে', ready: '📦 পণ্য প্রস্তুত, দোকান থেকে নিয়ে নিন', onway: '🛵 ডেলিভারি ম্যান পণ্য নিয়ে রওনা হয়েছেন',
-    done: '🎉 অর্ডার সম্পন্ন হয়েছে', 'trip-late': '⏰ লঞ্চ দেরিতে ছাড়বে', 'cat-ok': '🏷️ নতুন ক্যাটাগরি অনুমোদন হয়েছে', 'cat-no': '🏷️ ক্যাটাগরির অনুরোধ হয়নি', cancelled: '🚫 অর্ডার বাতিল হয়েছে', refund: '↩️ রিফান্ডের সিদ্ধান্ত হয়েছে', support: '🛟 লোকালহাট টিম উত্তর দিয়েছে',
+    done: '🎉 অর্ডার সম্পন্ন হয়েছে', rx: '📄 নতুন প্রেসক্রিপশন এসেছে', 'rx-list': '📋 তালিকা ও দাম এসেছে, নিশ্চিত করুন', 'rx-ok': '✅ রোগী প্রেসক্রিপশনের অর্ডার নিশ্চিত করেছেন', 'trip-late': '⏰ লঞ্চ দেরিতে ছাড়বে', 'cat-ok': '🏷️ নতুন ক্যাটাগরি অনুমোদন হয়েছে', 'cat-no': '🏷️ ক্যাটাগরির অনুরোধ হয়নি', cancelled: '🚫 অর্ডার বাতিল হয়েছে', refund: '↩️ রিফান্ডের সিদ্ধান্ত হয়েছে', support: '🛟 লোকালহাট টিম উত্তর দিয়েছে',
     new: '🔔 নতুন অর্ডার এসেছে', booked: '🔔 নতুন বুকিং এসেছে', rated: '⭐ নতুন রেটিং পেয়েছেন'
   };
   function noteInfo(n, side) {

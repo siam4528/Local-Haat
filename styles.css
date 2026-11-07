@@ -1265,3 +1265,23 @@ body[data-page="map"] .top-in > .search { display: none; }
 .proof-prev img, .proof-pic { display: block; max-width: 100%; max-height: 280px; margin-top: 8px; border-radius: 12px; border: 1px solid var(--line); object-fit: cover; }
 .proof-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; vertical-align: middle; border: 1px solid var(--line); }
 .proof-line { display: flex; align-items: center; gap: 8px; }
+
+/* Part 7: medicines by prescription */
+.rx-tag { display: inline-block; margin-top: 2px; padding: 0 6px; border-radius: 6px; background: #fdeceb; color: var(--danger); font-size: 12px; font-weight: 600; }
+.rx-btn { margin-top: 10px; }
+.rx-pics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.rx-pics img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+.rx-pick { position: relative; display: inline-block; }
+.rx-pick img { width: 84px; height: 84px; object-fit: cover; border-radius: 9px; border: 1px solid var(--line); }
+.rx-pick button { position: absolute; top: -6px; right: -6px; width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--ink); color: #fff; font-size: 13px; cursor: pointer; }
+.rx-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; grid-column: 1 / -1; }
+.rx-edit input { width: 76px; min-height: 36px; padding: 0 6px; border: 1.5px solid var(--line); border-radius: 9px; }
+.rx-meds { max-height: 260px; overflow-y: auto; margin: 6px 0; padding: 0; list-style: none; }
+.rx-meds li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.rx-meds li[hidden] { display: none; }
+.rx-meds small { color: var(--muted); }
+#rx-find { width: 100%; min-height: 40px; padding: 0 10px; border: 1.5px solid var(--line); border-radius: 10px; }
+.rx-free { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 6px; }
+.rx-free input { min-width: 0; min-height: 38px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 9px; }
+.rx-free .chk, .rx-free .btn { grid-column: 1 / -1; }
+.rx-need { margin: 8px 0; }
