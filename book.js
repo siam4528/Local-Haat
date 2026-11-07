@@ -118,6 +118,7 @@ window.LHBook = (function () {
     if (it.trip) return `<span class="price"><span>ভাড়া শুরু</span> ${U.tk(it.price)}</span>`;
     if (it.book === 'quote') return `<span class="price">চার্জ ${U.tk(it.price)}</span>`;
     if (it.book === 'fixed') return `<span class="price">${it.price ? U.tk(it.price) : 'ফ্রি'}</span>`;
+    if (it.brand) return `<span class="price">${U.tk(it.price)} <small class="mrp">MRP</small></span>`;
     return `<span class="price">${it.price ? U.tk(it.price) : 'দাম জেনে নিন'}</span>`;
   }
   const bookNote = (it) => (it.book === 'bus' ? '<small class="bk-note">অ্যাপে টিকেট কাটলে পথের যেকোনো স্টপ থেকে উঠতে পারবেন</small>' : it.trip ? '<small class="bk-note">দূরত্ব, মাল ও সময় দেখে ভাড়া আলোচনায় ঠিক হবে</small>' : it.book === 'quote' ? '<small class="bk-note">বাকি বিল সমস্যা দেখে, আলোচনায় ঠিক হবে</small>' : it.book === 'test' && it.note ? `<small class="bk-note">${U.ud(it.note)}</small>` : '');

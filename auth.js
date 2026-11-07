@@ -344,6 +344,7 @@ window.LHAuth = (function () {
           ${loc}${err('lat')}</div>
         <label class="field"><span>পরিচিতি <i>(ঐচ্ছিক)</i></span><textarea ${attrs('about')} maxlength="300" rows="2">${H.esc(d.about || '')}</textarea></label>
         ${window.LHCats.signupFields(d.sub, err('cats'))}
+        ${window.LHCompany.signupPicks(d.sub, d.kind)}
         <div class="wiz-actions"><button type="button" class="btn ghost" data-auth="wiz-back">‹ আগের ধাপ</button><button class="btn" type="submit">${d.kind === 'service' ? 'সেবা খুলুন' : 'দোকান খুলুন'}</button></div>`;
     }
     return shell('owner', 'signup', `${wizard === 0 ? socialStart('owner') : ''}${bar}<form data-form="signup-owner" novalidate>${body}</form>`);
@@ -488,7 +489,9 @@ window.LHAuth = (function () {
       extra: [], waiting: []
     });
     window.LHCats.signupDone(id, d.sub);
+    const brands = window.LHCompany.signupTaken();
     createAccount('owner', contact, { shopId: id });
+    if (brands.length) Store.addBrands(id, brands);
   }
 
   /* ---------- OTP ---------- */

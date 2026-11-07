@@ -75,7 +75,7 @@ window.LHStore = (function () {
   const RIDER = { id: 'r1', name: 'কামাল হোসেন', phone: '01911000001' };
   const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 
-  const VERSION = 16;
+  const VERSION = 17;
   const SEED_DELIVERY_FEE = 40;
   const SEED_DELIVERY_NEXT = 20;
   // v9: past the free distance each started kilometre costs more; a big item goes by van or pickup at its own rates
@@ -234,6 +234,8 @@ window.LHStore = (function () {
     if (s3 && f3) f3.items.forEach((it) => { if (!s3.items.concat(s3.waiting || []).some((x) => x.id === it.id || x.name === it.name)) s3.items.push(it); });
     demoOrders().forEach((o) => { if (!d.orders.some((x) => x.code === o.code)) d.orders.push(o); });
     d.nextNo = Math.max(d.nextNo, 10000020);
+    // v17: companies with their brand products, LocalHaat's common list, and the demo shops' brand products
+    if (!d.companies) brandSeed(d);
     d.v = VERSION;
     return d;
   }
@@ -337,6 +339,79 @@ window.LHStore = (function () {
     it.offer = { price: it.offer.price, until: DT.ymd(Date.now() + it.offer.days * 864e5) };
     return it;
   }
+  /* ---------- the demo companies, their brands and the common list ---------- */
+  // Function declarations and plain values only: the seed runs before the rest of this file.
+  // Made-up companies; none is a real brand.
+  function seedCompanies() {
+    const at = new Date(Date.now() - 40 * 864e5).toISOString();
+    const by = { at, by: 'tm-verify', byName: 'মাহমুদ হাসান' };
+    return [
+      { id: 'co1', name: 'পদ্মাপাড় ফুডস লিমিটেড', person: 'সাইফুল আলম', contact: '01611000001', about: 'চাল, আটা, তেল ও মসলা', pw: hash('demo1234'), status: 'ok', at, decided: by },
+      { id: 'co2', name: 'ঝিলমিল কনজিউমার প্রোডাক্টস', person: 'নাসরিন জাহান', contact: '01611000002', about: 'সাবান, টুথপেস্ট ও ঘর পরিষ্কারের পণ্য', pw: hash('demo1234'), status: 'ok', at, decided: by },
+      { id: 'co3', name: 'ভোরের চা কোম্পানি', person: 'মোস্তফা কামাল', contact: '01611000003', about: 'প্যাকেট চা ও গ্রিন টি', pw: hash('demo1234'), status: 'pending', at: new Date(Date.now() - 864e5).toISOString() }
+    ];
+  }
+  function seedBrands() {
+    return [
+      ['b1', 'co1', 'পদ্মাপাড় সয়াবিন তেল', 'তেল ও ঘি', '১ লিটার', 195, '🫗'], ['b2', 'co1', 'পদ্মাপাড় মিনিকেট চাল', 'চাল, ডাল ও আটা', '৫ কেজি', 390, '🍚'],
+      ['b3', 'co1', 'পদ্মাপাড় আটা', 'চাল, ডাল ও আটা', '২ কেজি', 120, '🌾'], ['b4', 'co1', 'পদ্মাপাড় হলুদ গুঁড়া', 'মসলা', '২০০ গ্রাম', 95, '🧂'],
+      ['b5', 'co1', 'পদ্মাপাড় মরিচ গুঁড়া', 'মসলা', '২০০ গ্রাম', 105, '🌶️'],
+      ['b6', 'co2', 'ঝিলমিল সুগন্ধি সাবান', 'সাবান ও প্রসাধনী', '১০০ গ্রাম', 55, '🧼'], ['b7', 'co2', 'ঝিলমিল ডিটারজেন্ট পাউডার', 'ঘর পরিষ্কার', '৫০০ গ্রাম', 85, '🧺'],
+      ['b8', 'co2', 'ঝিলমিল টুথপেস্ট', 'সাবান ও প্রসাধনী', '১০০ গ্রাম', 110, '🦷'], ['b9', 'co2', 'ঝিলমিল ডিশ ওয়াশ লিকুইড', 'ঘর পরিষ্কার', '৫০০ মি.লি.', 125, '🧽'],
+      ['b10', 'co2', 'ঝিলমিল শ্যাম্পু', 'সাবান ও প্রসাধনী', '১৮০ মি.লি.', 240, '🧴']
+    ].map(([id, companyId, name, group, unit, mrp, icon]) => ({ id, companyId, name, group, unit, mrp, icon, pic: '', at: '' }));
+  }
+  // LocalHaat's common list: plain goods and services of a sub-category, each shop puts its own price
+  function seedCommon() {
+    return [
+      ['মুদি দোকান', 'মিনিকেট চাল (খোলা)', '১ কেজি', '🍚'], ['মুদি দোকান', 'মসুর ডাল (খোলা)', '১ কেজি', '🫘'], ['মুদি দোকান', 'চিনি (খোলা)', '১ কেজি', '🧂'],
+      ['মুদি দোকান', 'ফার্মের ডিম', '১ হালি', '🥚'], ['মুদি দোকান', 'আলু', '১ কেজি', '🥔'], ['মুদি দোকান', 'দেশি পেঁয়াজ', '১ কেজি', '🧅'],
+      ['সবজি বিক্রেতা', 'আলু', '১ কেজি', '🥔'], ['সবজি বিক্রেতা', 'দেশি পেঁয়াজ', '১ কেজি', '🧅'], ['সবজি বিক্রেতা', 'টমেটো', '১ কেজি', '🍅'],
+      ['সবজি বিক্রেতা', 'বেগুন', '১ কেজি', '🍆'], ['সবজি বিক্রেতা', 'কাঁচা মরিচ', '২৫০ গ্রাম', '🌶️'],
+      ['মাছ-মাংসের দোকান', 'রুই মাছ', '১ কেজি', '🐟'], ['মাছ-মাংসের দোকান', 'ব্রয়লার মুরগি', '১ কেজি', '🍗'], ['মাছ-মাংসের দোকান', 'গরুর মাংস', '১ কেজি', '🥩'],
+      ['ফার্মেসি', 'ওআরএস স্যালাইন', '১ প্যাকেট', '💧'], ['ফার্মেসি', 'সার্জিক্যাল মাস্ক', '১০ পিস', '😷'], ['ফার্মেসি', 'তুলা', '১ প্যাকেট', '🩹'],
+      ['সেলুন', 'চুল কাটা', 'প্রতি জন', '✂️'], ['সেলুন', 'দাড়ি কাটা', 'প্রতি জন', '🪒'], ['সেলুন', 'চুলে রং', 'প্রতি জন', '🎨']
+    ].map(([sub, name, unit, icon], i) => ({ id: 'cm' + (i + 1), sub, name, unit, icon }));
+  }
+  // what a shop's copy of a brand product follows from the company: the name, the quantity, the picture and the MRP
+  function brandFields(b) { return { name: b.name, unit: b.unit, price: b.mrp, icon: b.icon, image: b.pic || undefined }; }
+  const DEMO_STOCK = { s1: ['b1', 'b4', 'b6', 'b7'], s2: ['b1', 'b2', 'b3'], s10: ['b2', 'b6', 'b8', 'b10'] };
+  function stockBrands(d) {
+    Object.entries(DEMO_STOCK).forEach(([shopId, ids]) => {
+      const s = d.shops.find((x) => x.id === shopId);
+      if (!s) return;
+      ids.forEach((id) => {
+        const b = d.brands.find((x) => x.id === id);
+        if (b && !s.items.concat(s.waiting || []).some((it) => it.brand === id)) s.items.push(Object.assign({ id: s.id + '-' + id, available: true, brand: id }, brandFields(b)));
+      });
+    });
+  }
+  // sample sales of the stocked brand products over three months, like the shops' sample sales
+  function brandDemo(d) {
+    const out = [];
+    const yesterday = DT.addDays(DT.ymd(), -1);
+    Object.entries(DEMO_STOCK).forEach(([shopId, ids]) => ids.forEach((id) => {
+      const b = d.brands.find((x) => x.id === id);
+      if (!b || !d.shops.some((x) => x.id === shopId)) return;
+      for (let back = 2; back >= 0; back--) {
+        const ym = DT.monthAdd(DT.month(), -back);
+        const days = DT.daysIn(ym);
+        const last = back ? days : yesterday.slice(0, 7) === ym ? Number(yesterday.slice(8)) : 0;
+        if (!last) continue;
+        const rnd = seeded(shopId + id + ym);
+        const n = Math.round((3 + rnd() * 6) * (last / days));
+        for (let i = 0; i < n; i++) out.push({ b: id, s: shopId, d: ym + '-' + String(1 + Math.floor(rnd() * last)).padStart(2, '0'), q: 1 + Math.floor(rnd() * 3), p: b.mrp });
+      }
+    }));
+    return out;
+  }
+  function brandSeed(d) {
+    d.companies = seedCompanies();
+    d.brands = seedBrands();
+    d.common = d.common || seedCommon();
+    stockBrands(d);
+    d.brandSales = brandDemo(d);
+  }
   function seed() {
     const shops = window.LH.shops.map((s) => {
       const g = GEO[s.id];
@@ -348,7 +423,7 @@ window.LHStore = (function () {
         launch: s.launch ? launchSeed(s.launch) : undefined
       };
     });
-    return {
+    const d = {
       v: VERSION,
       shops,
       chats: [],
@@ -385,6 +460,8 @@ window.LHStore = (function () {
       place: window.LH.places[0].id,
       nextNo: 10000020
     };
+    brandSeed(d);
+    return d;
   }
 
   function load() {
@@ -599,7 +676,7 @@ window.LHStore = (function () {
       } else if (!openNow(shop)) fail('দোকান এখন বন্ধ, কখন চান সেই সময় দিন');
       const lines = Object.entries(g.lines).map(([id, qty]) => {
         const it = shop.items.find((x) => x.id === id);
-        return it && it.available ? { itemId: id, name: it.name, unit: it.unit, price: it.price, icon: it.icon, qty } : null;
+        return it && it.available ? { itemId: id, name: it.name, unit: it.unit, price: it.price, icon: it.icon, qty, brand: it.brand } : null;
       }).filter(Boolean);
       if (!lines.length) fail('কার্ট খালি');
       const mode = shop.kind === 'service' ? 'service' : g.mode;
@@ -1750,6 +1827,7 @@ window.LHStore = (function () {
     if (id) {
       const it = findItem(shop, id) || fail('পণ্য পাওয়া যায়নি');
       const old = Object.assign({}, it);
+      if (it.brand) v = { available: v.available === undefined ? it.available : v.available, big: v.big, rx: v.rx, noReturn: v.noReturn };
       Object.assign(it, v);
       sortItem(shop, it);
       commit(() => { Object.keys(it).forEach((k) => delete it[k]); Object.assign(it, old); sortItem(shop, it); });
@@ -1771,6 +1849,203 @@ window.LHStore = (function () {
     }
     save();
   }
+  /* ---------- companies and their brands; LocalHaat's common list ---------- */
+  // A company (a maker or an importer) signs up; its panel opens when the team approves it. Its products have a name, a
+  // picture, a group, a quantity and the MRP. A shop that stocks one sells it at the MRP: the shop says only in stock or not,
+  // and when the company changes the MRP every shop's price follows (an order already placed keeps its price).
+  // LocalHaat's common list, by sub-category (rice, potatoes, a haircut), each shop prices itself.
+  // A company's report: what sold, by product and by division, district and upazila, and in how many shops each product is.
+  // Never who bought; the shops' names only on the team's view.
+  // A group of products, and the sub-categories it is recommended to.
+  const BRAND_GROUPS = {
+    'চাল, ডাল ও আটা': ['মুদি দোকান'], 'তেল ও ঘি': ['মুদি দোকান'], 'মসলা': ['মুদি দোকান', 'মসলার দোকান'],
+    'চা ও পানীয়': ['মুদি দোকান', 'চায়ের দোকান', 'কফি বার'], 'বিস্কুট ও নাস্তা': ['মুদি দোকান', 'বেকারি', 'চায়ের দোকান'],
+    'দুধ ও দুগ্ধজাত': ['দুগ্ধজাত পণ্য', 'মুদি দোকান'], 'সাবান ও প্রসাধনী': ['মুদি দোকান', 'ফার্মেসি'], 'ঘর পরিষ্কার': ['মুদি দোকান', 'হার্ডওয়্যার'],
+    'স্বাস্থ্যসামগ্রী ও ওষুধ': ['ফার্মেসি'], 'রং ও হার্ডওয়্যার': ['রঙের দোকান', 'হার্ডওয়্যার'], 'খাতা-কলম': ['স্টেশনারি', 'বইয়ের দোকান']
+  };
+  const BRAND_PIC = /^data:image\/(webp|jpeg);base64,[A-Za-z0-9+/=]+$/;
+  const companyById = (id) => (data.companies || []).find((c) => c.id === id) || null;
+  const companyMe = () => companyById(data.sessions.company);
+  const companyOk = () => {
+    const c = companyMe() || fail('কোম্পানি হিসেবে লগইন করুন');
+    if (c.status !== 'ok') fail('লোকালহাট টিম অনুমোদন দিলে এটি করা যাবে');
+    return c;
+  };
+  const brandLive = (b) => { const c = companyById(b.companyId); return !!c && c.status === 'ok'; };
+  function companySignup(v) {
+    const name = words(v.name).slice(0, 80);
+    if (name.length < 3) fail('কোম্পানির নাম দিন');
+    const person = words(v.person).slice(0, 60);
+    if (person.length < 3) fail('যোগাযোগের মানুষের নাম দিন');
+    const contact = String(v.contact || '').trim().toLowerCase();
+    if (!isContact(contact)) fail('মোবাইল নম্বর বা ইমেইল ঠিক করে দিন');
+    if (data.companies.some((c) => c.contact === contact)) fail('এই নম্বর বা ইমেইলে আগেই কোম্পানি একাউন্ট আছে');
+    if (String(v.pw || '').length < 6) fail('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের দিন');
+    const c = { id: 'co' + Date.now().toString(36), name, person, contact, about: words(v.about).slice(0, 300), pw: hash(String(v.pw)), status: 'pending', at: new Date().toISOString() };
+    data.companies.push(c);
+    data.sessions.company = c.id;
+    save();
+    return c;
+  }
+  function companyLogin(contact, pw) {
+    const c = String(contact || '').trim().toLowerCase();
+    const x = data.companies.find((y) => y.contact === c);
+    if (!x || x.pw !== hash(String(pw || ''))) fail('মোবাইল / ইমেইল বা পাসওয়ার্ড ভুল');
+    data.sessions.company = x.id;
+    save();
+    return x;
+  }
+  function companyLogout() { delete data.sessions.company; save(); }
+  // a company the team refused fixes what it was told and asks again
+  function companyAgain(about) {
+    const c = companyMe() || fail('কোম্পানি হিসেবে লগইন করুন');
+    if (c.status !== 'no') fail('এখন আবার আবেদনের কিছু নেই');
+    Object.assign(c, { status: 'pending', about: words(about).slice(0, 300) || c.about, at: new Date().toISOString() });
+    save();
+  }
+  // the team (verification or the super admin) approves or refuses a company's account
+  function companyDecide(id, ok, reason) {
+    const me = need('company');
+    const c = companyById(id) || fail('কোম্পানি পাওয়া যায়নি');
+    if (c.status !== 'pending') fail('এই কোম্পানির সিদ্ধান্ত আগেই হয়েছে');
+    const why = ok ? '' : reasonOf(reason);
+    Object.assign(c, { status: ok ? 'ok' : 'no', reason: why, decided: { at: new Date().toISOString(), by: me.id, byName: me.name } });
+    audit(ok ? 'company-ok' : 'company-no', { kind: 'company', id: c.id, name: c.name }, why);
+    save();
+  }
+  function checkBrand(v) {
+    const name = words(v.name).slice(0, 80);
+    if (name.length < 2) fail('পণ্যের নাম দিন');
+    if (!Object.hasOwn(BRAND_GROUPS, v.group || '')) fail('গ্রুপ বেছে নিন');
+    const unit = words(v.unit).slice(0, 30);
+    if (!unit) fail('পরিমাণ দিন, যেমন ১ লিটার');
+    const mrp = Number(v.mrp);
+    if (!Number.isInteger(mrp) || mrp < 1 || mrp > 1e6) fail('MRP টাকায়, পূর্ণ সংখ্যায় দিন');
+    if (v.pic && !BRAND_PIC.test(v.pic)) fail('ছবিটি নেওয়া যায়নি, আবার দিন');
+    return { name, group: v.group, unit, mrp, pic: v.pic || '', icon: v.icon || '📦' };
+  }
+  // a new product, or a change: every shop that stocks it follows at once
+  function brandSave(id, v) {
+    const c = companyOk();
+    const x = checkBrand(v);
+    const at = new Date().toISOString();
+    let b;
+    if (id) {
+      b = data.brands.find((y) => y.id === id && y.companyId === c.id) || fail('পণ্য পাওয়া যায়নি');
+      if (b.mrp !== x.mrp) (b.mrpLog = b.mrpLog || []).push({ at, from: b.mrp, to: x.mrp });
+      Object.assign(b, x, { updatedAt: at });
+      data.shops.forEach((s) => s.items.concat(s.waiting || []).forEach((it) => { if (it.brand === b.id) Object.assign(it, brandFields(b)); }));
+    } else {
+      b = Object.assign({ id: 'b' + Date.now().toString(36), companyId: c.id, at }, x);
+      data.brands.push(b);
+    }
+    save();
+    return b;
+  }
+  const brandsOf = (companyId) => data.brands.filter((b) => b.companyId === companyId);
+  const myShop = (shopId) => {
+    const owner = data.accounts.find((a) => a.id === data.sessions.owner && a.role === 'owner');
+    if (!owner || owner.shopId !== shopId) fail('এই দোকান আপনার নয়');
+    return shopById(shopId);
+  };
+  const subsOfShop = (s) => [s.sub].concat(extraOf(s).map((x) => x.sub)).filter(Boolean);
+  const hasBrand = (s, id) => s.items.concat(s.waiting || []).some((it) => it.brand === id);
+  // the brand products a shop can pick; those of its own sub-categories first
+  function brandChoices(s, sub) {
+    const subs = sub ? [sub] : subsOfShop(s);
+    return data.brands.filter(brandLive).map((b) => ({ b, company: companyById(b.companyId).name, rec: (BRAND_GROUPS[b.group] || []).some((x) => subs.includes(x)), has: !!s && hasBrand(s, b.id) }))
+      .sort((x, y) => y.rec - x.rec || x.b.group.localeCompare(y.b.group, 'bn') || x.b.name.localeCompare(y.b.name, 'bn'));
+  }
+  function addBrands(shopId, ids) {
+    const s = myShop(shopId);
+    const list = [...new Set(ids || [])].map((id) => data.brands.find((b) => b.id === id && brandLive(b)) || fail('পণ্য পাওয়া যায়নি')).filter((b) => !hasBrand(s, b.id));
+    if (!list.length) fail('কোন পণ্য যোগ করবেন, বেছে নিন');
+    list.forEach((b) => s.items.push(Object.assign({ id: s.id + '-' + b.id, available: true, brand: b.id, sub: s.sub || undefined }, brandFields(b))));
+    save();
+    return list.length;
+  }
+  // the common list of a shop's sub-categories
+  const commonFor = (s) => { const subs = subsOfShop(s); return data.common.filter((x) => subs.includes(x.sub)).map((x) => ({ x, has: s.items.concat(s.waiting || []).some((it) => it.common === x.id) })); };
+  function addCommon(shopId, rows) {
+    const s = myShop(shopId);
+    const subs = subsOfShop(s);
+    const list = (rows || []).map((r) => {
+      const x = data.common.find((y) => y.id === r.id && subs.includes(y.sub)) || fail('তালিকায় পাওয়া যায়নি');
+      const price = Number(r.price);
+      if (!Number.isInteger(price) || price < 1 || price > 1e7) fail('দাম দিন: ' + x.name);
+      return { x, price };
+    }).filter((r) => !s.items.concat(s.waiting || []).some((it) => it.common === r.x.id));
+    if (!list.length) fail('কোন পণ্য যোগ করবেন, বেছে নিন');
+    list.forEach(({ x, price }) => s.items.push({ id: s.id + '-' + x.id, name: x.name, unit: x.unit, icon: x.icon, price, available: true, common: x.id, sub: x.sub, book: kindOfSub(x.sub) === 'service' ? 'quote' : undefined }));
+    save();
+    return list.length;
+  }
+  // the team keeps the common list: the super admin and the divisions' staff; a shop's copy stays the shop's own
+  function commonSave(id, v) {
+    need('common');
+    const sub = String(v.sub || '');
+    if (!catOfSub(sub)) fail('সাব-ক্যাটাগরি বেছে নিন');
+    const name = words(v.name).slice(0, 60);
+    if (name.length < 2) fail('নাম দিন');
+    const unit = words(v.unit).slice(0, 30);
+    if (!unit) fail('একক দিন, যেমন ১ কেজি');
+    const x = { sub, name, unit, icon: v.icon || '📦' };
+    if (data.common.some((y) => y.id !== id && y.sub === sub && y.name === name)) fail('এই নাম তালিকায় আগেই আছে');
+    if (id) {
+      const y = data.common.find((z) => z.id === id) || fail('তালিকায় পাওয়া যায়নি');
+      const from = { sub: y.sub, name: y.name, unit: y.unit };
+      Object.assign(y, x);
+      audit('common-edit', { kind: 'common', id, name }, '', { from, to: { sub, name, unit } });
+    } else {
+      id = 'cm' + Date.now().toString(36);
+      data.common.push(Object.assign({ id }, x));
+      audit('common-add', { kind: 'common', id, name }, '', { to: { sub, name, unit } });
+    }
+    save();
+    return id;
+  }
+  function commonDelete(id, reason) {
+    need('common');
+    const y = data.common.find((z) => z.id === id) || fail('তালিকায় পাওয়া যায়নি');
+    const why = reasonOf(reason);
+    data.common = data.common.filter((z) => z !== y);
+    audit('common-del', { kind: 'common', id, name: y.name }, why, { from: { sub: y.sub, name: y.name, unit: y.unit } });
+    save();
+  }
+  // A company's sales: the brand lines of finished orders (what the buyer kept), and the sample rows. No buyer in it.
+  // withShops: the team's view also names the shops that stock each product.
+  function brandReport(companyId, month, withShops) {
+    const mine = brandsOf(companyId);
+    const ids = new Set(mine.map((b) => b.id));
+    const rows = [];
+    data.orders.forEach((o) => {
+      if (!isFinished(o)) return;
+      const end = o.history.filter((h) => h.status === o.status).pop();
+      const day = dayStr(new Date(end ? end.at : o.createdAt));
+      netOf(o).lines.forEach((l) => { if (l.brand && ids.has(l.brand)) rows.push({ b: l.brand, s: o.shopId, d: day, q: l.qty, v: l.qty * l.price }); });
+    });
+    (data.brandSales || []).forEach((r) => { if (ids.has(r.b)) rows.push({ b: r.b, s: r.s, d: r.d, q: r.q, v: r.q * r.p, demo: true }); });
+    const list = rows.filter((r) => !month || r.d.startsWith(month));
+    const sum = (rs, k) => rs.reduce((a, r) => a + r[k], 0);
+    const products = mine.map((b) => {
+      const rs = list.filter((r) => r.b === b.id);
+      const shops = data.shops.filter((s) => shopLive(s) && hasBrand(s, b.id));
+      const out = { id: b.id, name: b.name, unit: b.unit, mrp: b.mrp, icon: b.icon, pic: b.pic, group: b.group, qty: sum(rs, 'q'), sales: sum(rs, 'v'), shops: shops.length, inStock: shops.filter((s) => s.items.some((it) => it.brand === b.id && it.available)).length };
+      if (withShops) out.shopList = shops.map((s) => ({ id: s.id, name: s.name, zila: s.zila, area: s.area, inStock: s.items.some((it) => it.brand === b.id && it.available) }));
+      return out;
+    }).sort((x, y) => y.sales - x.sales);
+    const places = {};
+    list.forEach((r) => {
+      const s = shopById(r.s) || {};
+      const key = [divOfZila(s.zila), s.zila || '', s.area || ''].join('|');
+      const p = places[key] || (places[key] = { div: divOfZila(s.zila), zila: s.zila || '', area: s.area || '', qty: 0, sales: 0 });
+      p.qty += r.q;
+      p.sales += r.v;
+    });
+    return { month: month || '', sales: sum(list, 'v'), qty: sum(list, 'q'), products, places: Object.values(places).sort((x, y) => y.sales - x.sales), demo: list.some((r) => r.demo) };
+  }
+  const companyReport = (month) => brandReport(companyOk().id, month, false);
+  const teamCompanyReport = (id, month) => { need('company'); companyById(id) || fail('কোম্পানি পাওয়া যায়নি'); return brandReport(id, month, true); };
   /* ---------- ratings: only a customer's own finished order can rate, once ---------- */
   const isFinished = (o) => o.status === 'delivered' || o.status === 'completed';
   /* ---------- medicines by prescription ---------- */
@@ -2486,9 +2761,9 @@ window.LHStore = (function () {
   const PERMS = {
     super: ['*'],
     support: ['dash', 'riders', 'rider.suspend', 'assign', 'support', 'orders', 'shop.add'],
-    verify: ['dash', 'shops', 'shop.verify', 'shop.suspend', 'shop.area', 'cats', 'riders', 'rider.papers', 'rider.suspend', 'rider.area', 'docs', 'shop.add', 'visit'],
+    verify: ['dash', 'shops', 'shop.verify', 'shop.suspend', 'shop.area', 'cats', 'riders', 'rider.papers', 'rider.suspend', 'rider.area', 'docs', 'shop.add', 'visit', 'company'],
     finance: ['dash', 'orders', 'refunds', 'report'],
-    division: ['dash', 'shops', 'riders', 'assign', 'support', 'orders', 'report', 'shop.add', 'visit']
+    division: ['dash', 'shops', 'riders', 'assign', 'support', 'orders', 'report', 'shop.add', 'visit', 'common']
   };
   const TEAM_CODE_MIN = 5;
   const TEAM_CODE_TRIES = 3;
@@ -2828,6 +3103,8 @@ window.LHStore = (function () {
     proofOf, teamProofSeen,
     isPharmacy, rxAsk, rxPics, rxQuote, rxTotal, rxConfirm,
     RET_WHY, returnDays, canReturn, retAsk, retRider, retCheck, retCashPaid, riderDoorReturn,
+    BRAND_GROUPS, companyById, companyMe, brandLive, companySignup, companyLogin, companyLogout, companyAgain, companyDecide, brandSave, brandsOf,
+    brandChoices, addBrands, commonFor, addCommon, commonSave, commonDelete, companyReport, teamCompanyReport,
     session(role) { return data.accounts.find((a) => a.id === data.sessions[role]) || null; },
     setSession(role, acc) { if (acc) data.sessions[role] = acc.id; else delete data.sessions[role]; save(); }
   };

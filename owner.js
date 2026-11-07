@@ -45,7 +45,10 @@ window.LHOwner = (function () {
     // a launch counter's launches, routes, trips and the counter itself
     if (Store.setupOf(s) === 'launch' && ['items', 'boat', 'lroute', 'counter'].includes(tab)) body = window.LHLaunch.ownerPage(s, parts);
     else if (tab === 'orders') body = ordersPage(s);
-    else if (tab === 'items') body = itemsPage(s);
+    // the shop's own list, the brand products and the common list
+    else if (tab === 'items' && parts[1] === 'brand' && !parts[2] && s.kind === 'shop' && !Store.setupOf(s)) body = window.LHCompany.brandPage(s);
+    else if (tab === 'items' && parts[1] === 'common' && !parts[2] && !Store.setupOf(s)) body = window.LHCompany.commonPage(s);
+    else if (tab === 'items' && !parts[1]) body = itemsPage(s);
     else if (tab === 'shop') body = shopPage(s);
     else if (tab === 'chat') body = window.LHBook.ownerChat(s, parts[1]);
     else if (tab === 'route' && Store.setupOf(s) === 'bus') body = routePage(s, parts[1]);
@@ -222,7 +225,7 @@ window.LHOwner = (function () {
     const asked = Store.openAsks(s.id).map((a) => a.sub);
     const waitTag = (it) => (waiting.includes(it) ? (asked.includes(it.sub) ? ' · <span class="tag warn">⏳ অনুমোদনের অপেক্ষায়</span>' : ' · <span class="tag bad">বিভাগ অনুমোদন নেই</span>') : '');
     const all = s.items.concat(waiting);
-    return `<div class="page-row"><h1 class="page-h">${word}র তালিকা</h1><button type="button" class="btn" data-own="item-new">+ নতুন ${word}</button></div>
+    return `${window.LHCompany.ownerSeg(s, '')}<div class="page-row"><h1 class="page-h">${word}র তালিকা</h1><button type="button" class="btn" data-own="item-new">+ নতুন ${word}</button></div>
       ${waiting.length ? `<a class="warn-link" href="#/owner/shop">⏳ ${U.bn(waiting.length)} <span>টি পণ্য বা সেবা অনুমোদনের অপেক্ষায়, গ্রাহক এখনো দেখছেন না।</span> ›</a>` : ''}
       ${all.length ? `<ul class="items">${all.map((it) => ownRow(it, `${U.ud(it.unit)}${it.sub ? ' · ' + U.esc(it.sub) : ''}${waitTag(it)}${it.trip ? ' · ট্রিপ বুকিং' : it.book === 'quote' ? ' · সেবা বুকিং' : it.book === 'fixed' ? ' · নির্দিষ্ট দামে বুকিং' : ''}${it.vehicle ? ' · <span>🚗 গাড়ির তথ্য চাওয়া হয়</span>' : ''}${it.big ? ' · <span>🚚 বড় জিনিস</span>' : ''}`, 'আছে', 'স্টক নেই')).join('')}</ul>` : `<div class="empty"><span aria-hidden="true">📦</span><h3>এখনো কিছু যোগ করা হয়নি</h3><p>প্রথম ${word} যোগ করলে গ্রাহক দেখতে পাবেন।</p></div>`}`;
   }
@@ -296,6 +299,21 @@ window.LHOwner = (function () {
         ${Store.isPharmacy(s) ? `<label class="switch gap-b"><input type="checkbox" id="it-noret" ${it && it.noReturn ? 'checked' : ''}><span>↩️ ফেরতযোগ্য নয় (যেমন ফ্রিজের ওষুধ)</span></label>` : ''}
         ${Store.isPharmacy(s) ? `<label class="switch gap-b"><input type="checkbox" id="it-rx" ${it && it.rx ? 'checked' : ''}><span>📄 প্রেসক্রিপশন লাগবে (শুধু প্রেসক্রিপশনের ছবিসহ অর্ডার)</span></label>` : ''}
         <fieldset class="field fs"><legend>আইকন</legend><div class="icon-pick">${(it && !ICONS.includes(it.icon) ? [it.icon] : []).concat(ICONS).map((ic, i) => `<label><input type="radio" name="it-icon" value="${ic}" ${(it ? it.icon === ic : i === 0) ? 'checked' : ''}><span>${ic}</span></label>`).join('')}</div></fieldset>
+        <button type="submit" class="btn block sheet-go">সংরক্ষণ করুন</button>
+      </form>
+      <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
+  }
+
+  function brandItemSheet(it) {
+    const s = shop();
+    itemDraft = it.id;
+    U.openSheet(`<h2 id="sheet-h">ব্র্যান্ডের পণ্য</h2>
+      <form id="brand-item-form" novalidate>
+        <div class="item bi-head">${U.thumbHtml(it)}<div class="item-txt"><b>${U.ud(it.name)}</b><small>${U.ud(it.unit)}</small><span class="price">MRP ${U.tk(it.price)}</span></div></div>
+        <p class="note">দাম কোম্পানির MRP, বদলানো যাবে না। কোম্পানি MRP বদলালে এখানেও বদলে যাবে।</p>
+        <label class="switch gap-b"><input type="checkbox" id="bi-stock" ${it.available ? 'checked' : ''}><span>স্টকে আছে</span></label>
+        ${Store.isPharmacy(s) ? `<label class="switch gap-b"><input type="checkbox" id="it-noret" ${it.noReturn ? 'checked' : ''}><span>↩️ ফেরতযোগ্য নয় (যেমন ফ্রিজের ওষুধ)</span></label>
+          <label class="switch gap-b"><input type="checkbox" id="it-rx" ${it.rx ? 'checked' : ''}><span>📄 প্রেসক্রিপশন লাগবে (শুধু প্রেসক্রিপশনের ছবিসহ অর্ডার)</span></label>` : ''}
         <button type="submit" class="btn block sheet-go">সংরক্ষণ করুন</button>
       </form>
       <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
@@ -634,7 +652,7 @@ window.LHOwner = (function () {
         case 'test-new': testSheet(null); break;
         case 'item-edit': {
           const it = Store.findItem(s, d.id);
-          if (it && it.role === 'doctor') doctorSheet(d.id); else if (it && it.role === 'test') testSheet(d.id); else itemSheet(d.id);
+          if (it && it.role === 'doctor') doctorSheet(d.id); else if (it && it.role === 'test') testSheet(d.id); else if (it && it.brand) brandItemSheet(it); else itemSheet(d.id);
           break;
         }
         case 'item-del': {
@@ -657,6 +675,12 @@ window.LHOwner = (function () {
       const o = Store.data.orders.find((x) => x.code === f.dataset.code);
       const results = o.ret.lines.map((l, k) => ({ ok: f.querySelector(`[name="rc-${k}"]:checked`).value === 'ok', reason: document.getElementById('rc-why-' + k).value }));
       try { Store.retCheck(f.dataset.code, results); U.closeSheet(); U.toast('সংরক্ষিত'); U.route(true); } catch (ex) { document.getElementById('rc-err').textContent = ex.message; }
+      return;
+    }
+    if (e.target.id === 'brand-item-form') {
+      e.preventDefault();
+      const box = (x) => { const el = document.getElementById(x); return el ? el.checked || undefined : undefined; };
+      try { Store.saveItem(shop().id, itemDraft, { available: document.getElementById('bi-stock').checked, rx: box('it-rx'), noReturn: box('it-noret') }); U.closeSheet(); U.toast('সংরক্ষিত'); U.route(true); } catch (ex) { U.toast(ex.message); }
       return;
     }
     const s = shop();

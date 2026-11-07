@@ -122,7 +122,7 @@
   }
 
   /* ---------- shared pieces ---------- */
-  const SIDES = [['customer', '#/', 'ইউজার'], ['owner', '#/owner', 'এজেন্ট'], ['delivery', '#/rider', 'ডেলিভারি'], ['admin', '#/admin', 'অ্যাডমিন']];
+  const SIDES = [['customer', '#/', 'ইউজার'], ['owner', '#/owner', 'এজেন্ট'], ['delivery', '#/rider', 'ডেলিভারি'], ['company', '#/company', 'কোম্পানি'], ['admin', '#/admin', 'অ্যাডমিন']];
   const homeOfSide = (side) => SIDES.find((x) => x[0] === side)[1];
   // A shop profile, an order or a delivery man's profile opened from a panel stays inside that panel.
   const SHARED = /^#\/(shop|track|profile)\//;
@@ -137,6 +137,7 @@
     if (h.startsWith('#/owner')) return 'owner';
     if (h.startsWith('#/rider')) return 'delivery';
     if (h.startsWith('#/admin')) return 'admin';
+    if (h.startsWith('#/company')) return 'company';
     return 'customer';
   }
   function renderStrip() {
@@ -162,7 +163,7 @@
     if (side !== 'customer') {
       $('top').innerHTML = `<div class="top-in top-plain">
         <a class="brand brand-on" href="${homeOfSide(side)}" data-action="go-home" aria-label="লোকালহাট হোম"><span class="mark" aria-hidden="true">হ</span><span class="brand-name">লোকালহাট</span></a>
-        <span class="side-title">${side === 'owner' ? 'এজেন্ট প্যানেল' : side === 'admin' ? 'অ্যাডমিন প্যানেল' : 'ডেলিভারি প্যানেল'}</span>
+        <span class="side-title">${side === 'owner' ? 'এজেন্ট প্যানেল' : side === 'admin' ? 'অ্যাডমিন প্যানেল' : side === 'company' ? 'কোম্পানি প্যানেল' : 'ডেলিভারি প্যানেল'}</span>
         ${side === 'owner' ? bellHtml(acct) : ''}
       </div>`;
       return;
@@ -201,6 +202,7 @@
     if (side === 'owner') html = window.LHOwner.tabs(tabLink);
     else if (side === 'delivery') html = window.LHRider.tabs(tabLink);
     else if (side === 'admin') html = window.LHAdmin.tabs(tabLink);
+    else if (side === 'company') html = window.LHCompany.tabs(tabLink);
     else {
       const h = location.hash || '#/';
       const me = S.viewAs ? null : window.LHAuth.current('customer');
@@ -1379,6 +1381,7 @@
     else if (page === 'owner') html = window.LHOwner.page(parts.slice(1));
     else if (page === 'rider') html = window.LHRider.page(parts.slice(1));
     else if (page === 'admin') html = window.LHAdmin.page(parts.slice(1));
+    else if (page === 'company') html = window.LHCompany.page(parts.slice(1));
     else if (page === 'support') html = Care.page(parts.slice(1));
     else if (page === 'profile') html = parts[1] === 'rider' ? Rate.riderProfile(parts[2]) : null;
     else if (page === 'book') html = Book.bookPage(parts[1], parts[2], parts[3], parts[4]);
@@ -1952,6 +1955,7 @@
   window.LHAdmin.init(window.LHUI);
   Rate.init(window.LHUI);
   Care.init(window.LHUI);
+  window.LHCompany.init(window.LHUI);
   Book.init(window.LHUI);
   window.LHLaunch.init(window.LHUI);
   window.LHCats.init(window.LHUI);

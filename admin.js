@@ -25,7 +25,7 @@ window.LHAdmin = (function () {
     const h = location.hash;
     // only the pages this person's role allows, with what waits on each in their own area
     const mineShop = (o) => can('dash', Store.shopById(o.shopId));
-    return link('#/admin', '✅', 'কাজ', h === '#/admin' || h.startsWith('#/admin/team') || h.startsWith('#/admin/audit') || h.startsWith('#/admin/order')) +
+    return link('#/admin', '✅', 'কাজ', h === '#/admin' || h.startsWith('#/admin/team') || h.startsWith('#/admin/audit') || h.startsWith('#/admin/order') || h.startsWith('#/admin/companies') || h.startsWith('#/admin/common')) +
       (can('shops') ? link('#/admin/shops', '🏪', 'এজেন্ট', h.startsWith('#/admin/shops'), can('cats') ? window.LHCats.openAll().length : 0) : '') +
       (can('riders') ? link('#/admin/riders', '🛵', 'ডেলিভারি ম্যান', h.startsWith('#/admin/riders'), (can('assign') ? D().orders.filter((o) => o.needsRider && !Store.isFinal(o) && can('assign', Store.shopById(o.shopId))).length : 0) + (can('rider.papers') ? papersWaiting().length : 0)) : '') +
       (can('report') ? link('#/admin/report', '📊', 'রিপোর্ট', h.startsWith('#/admin/report')) : '') +
@@ -489,9 +489,10 @@ window.LHAdmin = (function () {
   const reportOf = (id) => { if (!id) return window.LHReport.allPage(); const s = Store.shopById(id); return !s ? null : can('report', s) ? window.LHReport.shopPage(id, true) : T().noPerm(); };
   const PAGES = {
     '': ['dash', () => T().dashPage()], shops: ['shops', shopsPage], riders: ['riders', ridersPage], report: ['report', reportOf], offers: ['ads', offersPage], refunds: ['refunds', refundsPage],
-    support: ['support', supportPage], fee: ['settings', feePage], 'new-shop': ['shop.add', newShopPage], visit: ['visit', (id) => window.LHCats.visitPage(id)], team: ['team', () => T().teamPage()], audit: ['audit', () => T().auditPage()], order: ['orders', (code) => T().orderPage(code)]
+    support: ['support', supportPage], fee: ['settings', feePage], 'new-shop': ['shop.add', newShopPage], visit: ['visit', (id) => window.LHCats.visitPage(id)], team: ['team', () => T().teamPage()], audit: ['audit', () => T().auditPage()], order: ['orders', (code) => T().orderPage(code)],
+    companies: ['company', (id) => window.LHCompany.adminCompanies(id)], common: ['common', () => window.LHCompany.adminCommon()]
   };
-  const DEEP = ['support', 'report', 'order', 'visit'];
+  const DEEP = ['support', 'report', 'order', 'visit', 'companies'];
   function page(parts) {
     if (!Store.isAdmin()) {
       if (parts[0]) { location.hash = '#/admin'; return ''; }
