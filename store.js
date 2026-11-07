@@ -1887,6 +1887,116 @@ window.LHStore = (function () {
     save();
     return o;
   }
+  /* ---------- giving medicines back ---------- */
+  // Only sealed medicines in date come back, within the pharmacy's days (3 unless it set others); one it marked
+  // "ফেরতযোগ্য নয়" (insulin from the fridge, say) never does. Paid in cash: the patient brings them to the pharmacy and
+  // gets cash there. Paid online: the delivery man takes them, and the accepted money goes to the team's refund list.
+  // Who pays the return delivery: the pharmacy for a wrong or damaged medicine, the patient when they changed their mind.
+  const RET_WHY = { wrong: 'ভুল ওষুধ এসেছে', damaged: 'নষ্ট বা মেয়াদ শেষ', mind: 'আর লাগবে না' };
+  const returnDays = (shop) => (shop && Number.isInteger(shop.returnDays) ? shop.returnDays : 3);
+  const doneAt = (o) => { const h = o.history.filter((x) => x.status === 'delivered' || x.status === 'completed').pop(); return h ? h.at : o.createdAt; };
+  const lineBack = (shop, l) => { const it = shop.items.find((x) => x.id === l.itemId); return !(it && it.noReturn); };
+  function canReturn(o) {
+    const shop = shopById(o.shopId);
+    if (!shop || !isPharmacy(shop) || !isFinished(o) || o.ret || o.refund || !o.lines.length) return false;
+    if (Date.now() - new Date(doneAt(o)).getTime() > returnDays(shop) * 864e5) return false;
+    return o.lines.some((l) => lineBack(shop, l));
+  }
+  function retAsk(code, customerId, p) {
+    const o = orderBy(code);
+    if (o.customerId !== customerId) fail('এই অর্ডার আপনার নয়');
+    if (!canReturn(o)) fail('এই অর্ডারের ওষুধ এখন ফেরত দেওয়া যাবে না');
+    const shop = shopById(o.shopId);
+    if (!RET_WHY[p.why]) fail('ফেরতের কারণ বেছে নিন');
+    if (!p.sealed) fail('শুধু সিল করা ও মেয়াদ আছে এমন ওষুধ ফেরত হয়, নিশ্চিত করুন');
+    const lines = (Array.isArray(p.lines) ? p.lines : []).map((x) => {
+      const i = Number(x.i);
+      const l = o.lines[i] || fail('ওষুধ পাওয়া যায়নি');
+      if (!lineBack(shop, l)) fail('এই ওষুধ ফেরতযোগ্য নয়');
+      const qty = Number(x.qty);
+      if (!Number.isInteger(qty) || qty < 1 || qty > l.qty) fail('কয়টি ফেরত দেবেন, ঠিক করে দিন');
+      return { i, name: l.name, qty, price: l.price };
+    });
+    if (!lines.length) fail('কোন ওষুধ ফেরত দেবেন, বেছে নিন');
+    const online = !!o.paid;
+    o.ret = { kind: online ? 'pickup' : 'shop', lines, why: p.why, note: words(p.note).slice(0, 300), feeBy: p.why === 'mind' ? 'customer' : 'shop', fee: online ? data.deliveryFee : 0, status: 'asked', at: new Date().toISOString(), rider: online ? o.delivery : null };
+    notifyShop(o, 'ret');
+    save();
+    return o;
+  }
+  // the delivery man takes them from the patient, then hands them to the pharmacy
+  function retRider(code, phone, step) {
+    const o = orderBy(code);
+    if (!o.ret || o.ret.kind !== 'pickup' || !o.ret.rider || o.ret.rider.phone !== phone) fail('এই কাজ আপনার নয়');
+    const at = new Date().toISOString();
+    if (step === 'picked' && o.ret.status === 'asked') Object.assign(o.ret, { status: 'picked', pickedAt: at });
+    else if (step === 'handed' && o.ret.status === 'picked') { Object.assign(o.ret, { status: 'handed', handedAt: at }); notifyShop(o, 'ret-in'); }
+    else fail('এই ধাপ এখন করা যাবে না');
+    save();
+  }
+  const myShopOrder = (code) => {
+    const o = orderBy(code);
+    const owner = data.accounts.find((a) => a.id === data.sessions.owner && a.role === 'owner');
+    if (!owner || owner.shopId !== o.shopId) fail('এই অর্ডার আপনার দোকানের নয়');
+    return o;
+  };
+  // the pharmacy checks each medicine: taken back, or not with the reason
+  function retCheck(code, results) {
+    const o = myShopOrder(code);
+    const r = o.ret;
+    if (!r || !((r.kind === 'shop' && r.status === 'asked') || (r.kind === 'pickup' && r.status === 'handed'))) fail('এখন মিলিয়ে দেখার কিছু নেই');
+    if (!Array.isArray(results) || results.length !== r.lines.length) fail('প্রতিটি ওষুধ মিলিয়ে দেখুন');
+    results.forEach((x, k) => {
+      const l = r.lines[k];
+      l.ok = !!x.ok;
+      delete l.reason;
+      if (!l.ok) { const why = words(x.reason).slice(0, 200); if (why.length < 3) fail('কেন নেওয়া হলো না, লিখুন'); l.reason = why; }
+    });
+    const at = new Date().toISOString();
+    r.accepted = r.lines.filter((l) => l.ok).reduce((a, l) => a + l.price * l.qty, 0);
+    r.back = Math.max(0, r.accepted - (r.feeBy === 'customer' ? r.fee : 0));
+    r.checkedAt = at;
+    if (r.kind === 'shop') r.status = r.accepted ? 'cash' : 'done';
+    else {
+      r.status = 'done';
+      if (r.back > 0) o.refund = { amount: r.back, reason: 'ওষুধ ফেরত: ' + RET_WHY[r.why], phone: o.recipient.phone, status: 'open', paid: 0, note: '', at, ret: true };
+    }
+    notify(o.customerId, 'ret-checked', o.code);
+    save();
+  }
+  // paid in cash: the pharmacy gives the money back at the counter
+  function retCashPaid(code) {
+    const o = myShopOrder(code);
+    if (!o.ret || o.ret.status !== 'cash') fail('এখন নগদ ফেরতের কিছু নেই');
+    Object.assign(o.ret, { status: 'done', paidAt: new Date().toISOString() });
+    notify(o.customerId, 'ret-paid', o.code);
+    save();
+  }
+  // At the door the patient gives the medicines back unopened: they pay only the delivery charge.
+  function riderDoorReturn(code, phone, pin, reason) {
+    const o = orderBy(code);
+    if (!o.delivery || o.delivery.phone !== phone) fail('এই অর্ডার আপনার নয়');
+    if (o.status !== 'out_for_delivery') fail('আগে "পণ্য নিয়েছি" চাপুন');
+    if (!isPharmacy(shopById(o.shopId))) fail('শুধু ফার্মেসির অর্ডারে দরজায় ফেরত হয়');
+    if (String(pin).trim() !== o.pin) fail('কোড মেলেনি। গ্রাহকের কাছ থেকে ৪ সংখ্যার কোড নিন');
+    const why = words(reason).slice(0, 200);
+    if (why.length < 3) fail('কেন ফেরত দিচ্ছেন, লিখুন');
+    const at = new Date().toISOString();
+    o.ret = { kind: 'door', lines: o.lines.map((l, i) => ({ i, name: l.name, qty: l.qty, price: l.price, ok: true })), why: 'door', note: why, feeBy: 'customer', fee: o.fee, status: 'done', at, accepted: o.sub, back: o.paid ? o.sub : 0 };
+    if (o.paid && o.sub > 0) o.refund = { amount: o.sub, reason: 'দরজায় ফেরত: ' + why, phone: o.recipient.phone, status: 'open', paid: 0, note: '', at, ret: true };
+    push(o, 'delivered', 'delivery', 'দরজায় ফেরত');
+    notifyShop(o, 'ret-door');
+    save();
+    return o;
+  }
+  // what an order sold once medicines came back: the report counts only what the patient kept
+  function netOf(o) {
+    if (!o.ret || !o.ret.accepted) return o;
+    const back = {};
+    o.ret.lines.filter((l) => l.ok).forEach((l) => { back[l.i] = (back[l.i] || 0) + l.qty; });
+    const lines = o.lines.map((l, i) => Object.assign({}, l, { qty: l.qty - (back[i] || 0) })).filter((l) => l.qty > 0);
+    return Object.assign({}, o, { lines, sub: Math.max(0, o.sub - o.ret.accepted), total: Math.max(0, o.total - o.ret.accepted) });
+  }
   // An earlier order to order again: only a finished shop order (not a booking or a ticket). Each line at today's price,
   // or why it cannot come: gone from the shop, out of stock. The shop may not be taking orders, or only for later.
   const canReorder = (o) => isFinished(o) && !o.book && !o.rx && o.mode !== 'service';
@@ -1938,6 +2048,7 @@ window.LHStore = (function () {
     if (o.customerId !== customerId) fail('এই অর্ডার আপনার নয়');
     if (!isFinished(o)) fail('অর্ডার সম্পন্ন হওয়ার পর রিফান্ড চাওয়া যাবে');
     if (o.refund) fail('এই অর্ডারে আগেই রিফান্ড চাওয়া হয়েছে');
+    if (o.ret) fail('এই অর্ডারের ওষুধ ফেরত চলছে');
     if (!Number.isInteger(p.amount) || p.amount < 1 || p.amount > o.total) fail('রিফান্ডের টাকা অর্ডারের মোটের মধ্যে দিন');
     if (String(p.reason).trim().length < 5) fail('রিফান্ডের কারণ লিখুন');
     if (!/^01[3-9]\d{8}$/.test(p.phone)) fail('১১ সংখ্যার মোবাইল নম্বর লিখুন, যেমন 017XXXXXXXX।');
@@ -2101,6 +2212,7 @@ window.LHStore = (function () {
     data.orders.forEach((o) => {
       if (isFinished(o) || ticketDone(o)) {
         const end = o.history.filter((h) => h.status === o.status).pop();
+        o = netOf(o);
         rows.push(Object.assign({ shopId: o.shopId, day: dayStr(new Date(o.book === 'launch' ? o.launch.dep : end ? end.at : o.createdAt)), value: o.mode === 'service' ? o.total : o.sub, fee: o.fee || 0, off: o.discount || 0, cancelled: false, lines: o.lines.map((l) => [l.name, l.qty]) }, orderMoney(o)));
       } else if (o.status === 'cancelled') {
         // what a given-back launch ticket kept back: LocalHaat's share of it, and who holds the money
@@ -2715,6 +2827,7 @@ window.LHStore = (function () {
     teamAddShop, teamCheckShop, teamSetMainCat, listingFor, claimShop, visitPlan, visitDone, kindOfSub,
     proofOf, teamProofSeen,
     isPharmacy, rxAsk, rxPics, rxQuote, rxTotal, rxConfirm,
+    RET_WHY, returnDays, canReturn, retAsk, retRider, retCheck, retCashPaid, riderDoorReturn,
     session(role) { return data.accounts.find((a) => a.id === data.sessions[role]) || null; },
     setSession(role, acc) { if (acc) data.sessions[role] = acc.id; else delete data.sessions[role]; save(); }
   };

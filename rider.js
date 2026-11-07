@@ -68,12 +68,24 @@ window.LHRider = (function () {
       <h1 class="page-h">আজকের কাজ</h1>
       ${m.lat ? `<p class="meta gap"><a class="inline-link" href="#/rider/area">📍 <span>কাজের এলাকা</span>: ${m.market ? `${U.ud(m.market)} · ` : ''}<span>${U.bn(m.km || 3)} কিমি</span> · <span>বদলান</span></a></p>` : ''}
       ${notesHtml(m)}
+      ${retJobsHtml(m)}
       <div class="stats two-stats">
         <div><b>${U.bn(list.length)}</b><span>চলমান ডেলিভারি</span></div>
         <div><b>${U.tk(cash)}</b><span>সংগ্রহ করতে হবে</span></div>
       </div>
       <div class="stack">${list.length ? list.map(card).join('') : `<div class="empty"><span aria-hidden="true">🛵</span><h3>এখন কোনো ডেলিভারি নেই</h3><p>${m.area ? `${U.geo(m.area)} এর ` : ''}দোকান অর্ডার গ্রহণ করলে কাজ অটোমেটিক এখানে আসবে।</p></div>`}</div>
     </div>`;
+  }
+  // medicines to bring back from a patient to the pharmacy
+  function retJobsHtml(m) {
+    const list = Store.data.orders.filter((o) => o.ret && o.ret.kind === 'pickup' && o.ret.rider && o.ret.rider.phone === m.contact && ['asked', 'picked'].includes(o.ret.status));
+    if (!list.length) return '';
+    return `<h2 class="gap-t">↩️ ফেরত আনুন</h2><div class="stack">${list.map((o) => `<article class="panel r-card ret-job" id="rj-${o.code}">
+      <div class="o-head"><div><b>${U.ud(o.shopName)}</b><small translate="no">#${U.bn(o.code)}</small></div><span class="tag">${o.ret.status === 'asked' ? 'রোগীর কাছ থেকে নিন' : 'ফার্মেসিতে দিন'}</span></div>
+      <p class="o-who">📍 ${U.ud(o.recipient.line)} · <a href="tel:${U.esc(o.recipient.phone)}" translate="no">${U.bn(o.recipient.phone)}</a></p>
+      <ul class="mini">${o.ret.lines.map((l) => `<li><span>${U.bn(l.qty)} × ${U.ud(l.name)}</span></li>`).join('')}</ul>
+      <button type="button" class="btn block" data-rider="ret-step" data-code="${o.code}" data-step="${o.ret.status === 'asked' ? 'picked' : 'handed'}">${o.ret.status === 'asked' ? '✓ রোগীর কাছ থেকে নিয়েছি' : '✓ ফার্মেসিতে দিয়েছি'}</button>
+    </article>`).join('')}</div>`;
   }
   function card(o) {
     return `<a class="panel r-card" href="#/rider/o/${o.code}">
@@ -111,6 +123,10 @@ window.LHRider = (function () {
           <button type="button" class="link" data-rider="no-cam">ক্যামেরা কাজ করছে না?</button>
           <label class="field" id="r-nocam" hidden><span>ছবি না তোলার কারণ</span><textarea id="r-nocam-why" rows="2" maxlength="200" placeholder="যেমন: ফোনের ক্যামেরা নষ্ট"></textarea><small>লোকালহাট টিম এটি দেখবে।</small></label></div>
         <button type="submit" class="btn huge block">✅ ডেলিভারি সম্পন্ন</button>
+        ${Store.isPharmacy(Store.shopById(o.shopId)) ? `<button type="button" class="link" data-rider="door-open">গ্রাহক না খুলে ফেরত দিচ্ছেন?</button>
+          <div id="r-door" class="r-door" hidden><label class="field"><span>ফেরতের কারণ</span><input id="r-door-why" type="text" maxlength="200" placeholder="যেমন: ভুল ওষুধ এসেছে"></label>
+            <p class="meta"><span>গ্রাহক শুধু ডেলিভারি চার্জ দেবেন</span>: ${U.tk(o.fee)}. <span>উপরের ঘরে গ্রাহকের কোড দিন।</span></p>
+            <button type="button" class="btn ghost block" data-rider="door-return" data-code="${o.code}">↩️ দরজায় ফেরত নিন</button></div>` : ''}
         <p class="meta">কোড না পেলে গ্রাহককে কল করুন, অথবা <a href="#/support/delivery">লোকালহাট টিমকে জানান</a>। টিম নিশ্চিত করতে পারবে।</p>
       </form>` : ''}
       <div class="r-stops">
@@ -298,6 +314,12 @@ window.LHRider = (function () {
           <button type="button" class="link" data-action="close-sheet">না, আমিই নেব</button>`);
       }
       if (d.rider === 'note-done') { Store.riderNoteDone(d.id); U.route(true); }
+      if (d.rider === 'ret-step') { Store.retRider(d.code, m.contact, d.step); U.toast(d.step === 'picked' ? 'ওষুধ নেওয়া হয়েছে' : 'ফার্মেসিতে দেওয়া হয়েছে'); U.route(true); }
+      if (d.rider === 'door-open') { const box = document.getElementById('r-door'); box.hidden = !box.hidden; }
+      if (d.rider === 'door-return') {
+        const pin = document.getElementById('r-pin').value.replace(/[০-৯]/g, (c) => '০১২৩৪৫৬৭৮৯'.indexOf(c));
+        try { Store.riderDoorReturn(d.code, m.contact, pin, document.getElementById('r-door-why').value); U.toast('দরজায় ফেরত নেওয়া হয়েছে'); location.hash = '#/rider/done'; } catch (ex) { document.getElementById('r-pin-err').textContent = ex.message; }
+      }
       if (d.rider === 'area-gps') {
         if (!navigator.geolocation) { document.getElementById('ra-err').textContent = 'এই ব্রাউজারে GPS নেই, ম্যাপে পিন দিন'; return; }
         navigator.geolocation.getCurrentPosition((p) => {

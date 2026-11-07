@@ -1285,3 +1285,10 @@ body[data-page="map"] .top-in > .search { display: none; }
 .rx-free input { min-width: 0; min-height: 38px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 9px; }
 .rx-free .chk, .rx-free .btn { grid-column: 1 / -1; }
 .rx-need { margin: 8px 0; }
+
+/* Part 8: medicines given back */
+.ret-box { margin-top: 8px; }
+.ret-box .mini small { color: var(--muted); }
+.ret-job .btn { margin-top: 8px; }
+.r-door { margin-top: 8px; padding: 10px; background: var(--soft); border-radius: 12px; }
+#ret-check fieldset input[type=text] { width: 100%; min-height: 38px; margin-top: 6px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 9px; }

@@ -1118,6 +1118,7 @@
             ${shop ? `<div class="contact"><a class="btn ghost" href="tel:${esc(shop.phone)}">📞 দোকানে কল</a><a class="btn ghost" href="#/chat/${shop.id}">💬 চ্যাট</a></div>` : ''}
           </section>
           ${mine ? proofHtml(o) : ''}
+          ${mine ? retHtml(o) : ''}
           ${mine && Store.canReorder(o) ? `<button type="button" class="btn block re-again" data-action="reorder" data-code="${o.code}">🔁 আবার অর্ডার করুন</button>` : ''}
           ${mine ? Rate.panel(o) : ''}
           ${mine ? Care.refundPanel(o) : ''}
@@ -1145,6 +1146,41 @@
     if (!p) return '';
     return p.pic ? `<section class="panel proof"><h2 class="tight">📷 ডেলিভারির ছবি</h2><img class="proof-pic" src="${p.pic}" alt="ডেলিভারির সময় তোলা ছবি"><p class="meta">${fmtTime(p.at)} · <span>শুধু আপনি, দোকান ও লোকালহাট টিম দেখতে পান</span></p></section>`
       : `<p class="note">📷 <span>ডেলিভারি ম্যান ছবি তুলতে পারেননি</span>: ${ud(p.reason)}</p>`;
+  }
+  /* ---------- giving medicines back ---------- */
+  function retHtml(o) {
+    const r = o.ret;
+    if (!r) return Store.canReturn(o) ? `<button type="button" class="btn ghost block" data-action="ret-ask" data-code="${o.code}">↩️ ওষুধ ফেরত দিন</button>` : '';
+    const now = {
+      asked: r.kind === 'shop' ? 'ওষুধগুলো নিয়ে নিজে ফার্মেসিতে যান। মিলিয়ে দেখে সেখানেই নগদ টাকা ফেরত দেবে।' : 'ডেলিভারি ম্যান এসে ওষুধগুলো নিয়ে যাবেন।',
+      picked: 'ডেলিভারি ম্যান ওষুধগুলো নিয়েছেন, ফার্মেসিতে দেবেন।',
+      handed: 'ফার্মেসি ওষুধগুলো মিলিয়ে দেখছে।',
+      cash: `<span>ফার্মেসি ওষুধ নিয়েছে। দোকান থেকে নগদ নিন</span>: ${tk(r.back)}`,
+      done: r.kind === 'door' ? `<span>দরজায় ফেরত দিয়েছেন। শুধু ডেলিভারি চার্জ</span>: ${tk(r.fee)}` : r.kind === 'shop' ? (r.accepted ? `<span>নগদ ফেরত দেওয়া হয়েছে</span>: ${tk(r.back)}` : '<span>ফার্মেসি কোনো ওষুধ ফেরত নেয়নি।</span>') : r.back ? `<span>লোকালহাট টিম ফেরত দেবে</span>: ${tk(r.back)}` : '<span>ফার্মেসি কোনো ওষুধ ফেরত নেয়নি।</span>'
+    }[r.status];
+    return `<section class="panel ret-box"><h2 class="tight">↩️ ওষুধ ফেরত</h2>
+      <ul class="mini">${r.lines.map((l) => `<li><span>${bn(l.qty)} × ${ud(l.name)}${l.reason ? ` <small>(${ud(l.reason)})</small>` : ''}</span><b>${l.ok === undefined ? '' : l.ok ? '✓' : '✕'}</b></li>`).join('')}</ul>
+      <p class="note">${now}</p>
+      ${r.kind === 'pickup' ? `<p class="meta">${r.feeBy === 'customer' ? `<span>ফেরতের ডেলিভারি চার্জ টাকা থেকে কাটা হবে</span>: ${tk(r.fee)}` : '<span>ফেরতের ডেলিভারি চার্জ ফার্মেসি দেবে</span>'}</p>` : ''}
+    </section>`;
+  }
+  function retSheet(code) {
+    const o = D().orders.find((x) => x.code === code);
+    const shop = Store.shopById(o.shopId);
+    openSheet(`<h2 id="sheet-h">↩️ ওষুধ ফেরত দিন</h2>
+      <p class="meta">${ud(o.shopName)} · <span>ডেলিভারির</span> ${bn(Store.returnDays(shop))} <span>দিনের মধ্যে, শুধু সিল করা ও মেয়াদ আছে এমন ওষুধ</span></p>
+      <form id="ret-form" data-code="${code}" novalidate>
+        <ul class="re-list">${o.lines.map((l, i) => { const it = shop.items.find((x) => x.id === l.itemId); const no = !!(it && it.noReturn); return `<li class="re-row ${no ? 'off' : ''}">
+          <label class="re-pick"><input type="checkbox" data-ret="${i}" ${no ? 'disabled' : ''}><span><b>${ud(l.name)}</b><small>${bn(l.qty)} × ${tk(l.price)}</small></span></label>
+          ${no ? '<span class="tag bad">ফেরতযোগ্য নয়</span>' : `<span class="re-qty"><input type="number" id="ret-q-${i}" min="1" max="${l.qty}" value="${l.qty}" aria-label="কয়টি"></span>`}</li>`; }).join('')}</ul>
+        <fieldset class="field fs"><legend>কেন ফেরত দিচ্ছেন</legend>${Object.entries(Store.RET_WHY).map(([k, w]) => `<label class="pay"><input type="radio" name="ret-why" value="${k}"><span><b>${w}</b>${o.paid ? `<small>${k === 'mind' ? 'ফেরতের ডেলিভারি চার্জ আপনার' : 'ফেরতের ডেলিভারি চার্জ ফার্মেসির'}</small>` : ''}</span></label>`).join('')}</fieldset>
+        <label class="field"><span>নোট (ঐচ্ছিক)</span><textarea id="ret-note" rows="2" maxlength="300"></textarea></label>
+        <label class="chk"><input type="checkbox" id="ret-sealed"><span>ওষুধগুলো সিল করা আছে, মেয়াদও আছে</span></label>
+        <p class="note">${o.paid ? 'ডেলিভারি ম্যান এসে নিয়ে যাবেন। ফার্মেসি মিলিয়ে দেখার পর টাকা লোকালহাট টিম ফেরত দেবে।' : 'ওষুধগুলো নিয়ে নিজে ফার্মেসিতে যান। মিলিয়ে দেখে সেখানেই নগদ টাকা ফেরত দেবে।'}</p>
+        <small class="err" id="ret-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">↩️ ফেরতের অনুরোধ পাঠান</button>
+      </form>
+      <button type="button" class="link" data-action="close-sheet">না, থাক</button>`);
   }
   /* ---------- medicines by prescription ---------- */
   const rxImgs = (pics) => `<div class="rx-pics">${pics.map((x) => `<a href="${x}" target="_blank" rel="noopener"><img src="${x}" alt="প্রেসক্রিপশনের ছবি"></a>`).join('')}</div>`;
@@ -1464,6 +1500,7 @@
         break;
       case 'pick-place': goToPlace(d.id, d.keepq); break;
       case 'reorder': reorderSheet(d.code); break;
+      case 'ret-ask': retSheet(d.code); break;
       case 'rx-unpic': if (S.rx) { S.rx.pics.splice(Number(d.i), 1); $('rx-pics').innerHTML = rxPickHtml(); } break;
       case 're-step': {
         const box = $('re-q-' + d.id);
@@ -1644,6 +1681,19 @@
       window.scrollTo(0, 0);
     }
   });
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (f.id !== 'ret-form') return;
+    e.preventDefault();
+    const lines = [...f.querySelectorAll('[data-ret]:checked')].map((b) => ({ i: Number(b.dataset.ret), qty: Number($('ret-q-' + b.dataset.ret).value) }));
+    const why = (f.querySelector('[name=ret-why]:checked') || {}).value;
+    try {
+      Store.retAsk(f.dataset.code, meCustomer().id, { lines, why, note: $('ret-note').value, sealed: $('ret-sealed').checked });
+      closeSheet();
+      toast('ফেরতের অনুরোধ পাঠানো হয়েছে');
+      route(true);
+    } catch (ex) { $('ret-err').textContent = ex.message; }
+  });
   /* ---------- the prescription pages' events ---------- */
   async function readRxPic(input, add) {
     const f = input.files[0];
@@ -1818,7 +1868,8 @@
   /* ---------- notifications ---------- */
   const NOTE_TEXT = {
     confirmed: '✅ দোকান অর্ডার গ্রহণ করেছে', ready: '📦 পণ্য প্রস্তুত, দোকান থেকে নিয়ে নিন', onway: '🛵 ডেলিভারি ম্যান পণ্য নিয়ে রওনা হয়েছেন',
-    done: '🎉 অর্ডার সম্পন্ন হয়েছে', rx: '📄 নতুন প্রেসক্রিপশন এসেছে', 'rx-list': '📋 তালিকা ও দাম এসেছে, নিশ্চিত করুন', 'rx-ok': '✅ রোগী প্রেসক্রিপশনের অর্ডার নিশ্চিত করেছেন', 'trip-late': '⏰ লঞ্চ দেরিতে ছাড়বে', 'cat-ok': '🏷️ নতুন ক্যাটাগরি অনুমোদন হয়েছে', 'cat-no': '🏷️ ক্যাটাগরির অনুরোধ হয়নি', cancelled: '🚫 অর্ডার বাতিল হয়েছে', refund: '↩️ রিফান্ডের সিদ্ধান্ত হয়েছে', support: '🛟 লোকালহাট টিম উত্তর দিয়েছে',
+    done: '🎉 অর্ডার সম্পন্ন হয়েছে', rx: '📄 নতুন প্রেসক্রিপশন এসেছে', 'rx-list': '📋 তালিকা ও দাম এসেছে, নিশ্চিত করুন', 'rx-ok': '✅ রোগী প্রেসক্রিপশনের অর্ডার নিশ্চিত করেছেন',
+    ret: '↩️ রোগী ওষুধ ফেরত দিতে চান', 'ret-in': '↩️ ফেরতের ওষুধ দোকানে এসেছে', 'ret-door': '↩️ দরজায় ওষুধ ফেরত এসেছে', 'ret-checked': '↩️ ফার্মেসি ফেরতের ওষুধ মিলিয়ে দেখেছে', 'ret-paid': '↩️ নগদ টাকা ফেরত দেওয়া হয়েছে', 'trip-late': '⏰ লঞ্চ দেরিতে ছাড়বে', 'cat-ok': '🏷️ নতুন ক্যাটাগরি অনুমোদন হয়েছে', 'cat-no': '🏷️ ক্যাটাগরির অনুরোধ হয়নি', cancelled: '🚫 অর্ডার বাতিল হয়েছে', refund: '↩️ রিফান্ডের সিদ্ধান্ত হয়েছে', support: '🛟 লোকালহাট টিম উত্তর দিয়েছে',
     new: '🔔 নতুন অর্ডার এসেছে', booked: '🔔 নতুন বুকিং এসেছে', rated: '⭐ নতুন রেটিং পেয়েছেন'
   };
   function noteInfo(n, side) {

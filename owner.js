@@ -55,6 +55,35 @@ window.LHOwner = (function () {
     return body === null ? null : `<div class="panel-page">${banner}${body}</div>`;
   }
 
+  /* ---------- medicines given back ---------- */
+  function retOwnerHtml(o) {
+    const r = o.ret;
+    const step = {
+      asked: r.kind === 'shop' ? 'রোগী নিজে ওষুধ নিয়ে আসবেন। পেলে মিলিয়ে দেখুন।' : 'ডেলিভারি ম্যান রোগীর কাছ থেকে আনবেন।',
+      picked: 'ডেলিভারি ম্যান নিয়ে আসছেন।', handed: 'ডেলিভারি ম্যান দিয়ে গেছেন। মিলিয়ে দেখুন।',
+      cash: `<span>রোগীকে নগদ ফেরত দিন</span>: ${U.tk(r.back)}`, done: r.kind === 'door' ? 'দরজায় ফেরত: পুরো অর্ডার ফিরে এসেছে।' : 'ফেরত শেষ।'
+    }[r.status];
+    const check = (r.kind === 'shop' && r.status === 'asked') || (r.kind === 'pickup' && r.status === 'handed');
+    return `<div class="ret-box"><p><b>↩️ <span>ওষুধ ফেরত</span></b>: <span>${Store.RET_WHY[r.why] || 'দরজায় ফেরত'}</span></p>
+      <ul class="mini">${r.lines.map((l) => `<li><span>${U.bn(l.qty)} × ${U.ud(l.name)}</span><b>${l.ok === undefined ? '' : l.ok ? '✓' : '✕'}</b></li>`).join('')}</ul>
+      <p class="meta">${step}</p>
+      ${r.kind === 'pickup' ? `<p class="meta">${r.feeBy === 'shop' ? '<span>ফেরতের ডেলিভারি চার্জ আপনার দোকান দেবে</span>' : '<span>ফেরতের ডেলিভারি চার্জ রোগী দেবেন</span>'}: ${U.tk(r.fee)}</p>` : ''}
+      ${check ? `<div class="o-acts"><button type="button" class="btn sm" data-own="ret-check" data-code="${o.code}">মিলিয়ে দেখুন</button></div>` : ''}
+      ${r.status === 'cash' ? `<div class="o-acts"><button type="button" class="btn sm" data-own="ret-cash" data-code="${o.code}">💵 <span>নগদ ফেরত দিয়েছি</span>: ${U.tk(r.back)}</button></div>` : ''}</div>`;
+  }
+  function retCheckSheet(code) {
+    const o = Store.data.orders.find((x) => x.code === code);
+    U.openSheet(`<h2 id="sheet-h">ফেরতের ওষুধ মিলিয়ে দেখুন</h2><p class="meta">সিল আর মেয়াদ দেখে প্রতিটি ওষুধ নিন, অথবা কারণ লিখে নেবেন না।</p>
+      <form id="ret-check" data-code="${code}" novalidate>
+        ${o.ret.lines.map((l, k) => `<fieldset class="field fs"><legend>${U.bn(l.qty)} × ${U.ud(l.name)}</legend>
+          <label class="chk"><input type="radio" name="rc-${k}" value="ok" checked><span>নিলাম</span></label>
+          <label class="chk"><input type="radio" name="rc-${k}" value="no"><span>নিলাম না</span></label>
+          <input type="text" id="rc-why-${k}" maxlength="200" placeholder="না নিলে কারণ, যেমন: সিল খোলা" aria-label="না নেওয়ার কারণ"></fieldset>`).join('')}
+        <small class="err" id="rc-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">সংরক্ষণ করুন</button>
+      </form>
+      <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
+  }
   /* ---------- a prescription: the pharmacy's list ---------- */
   let rxRows = [];
   let rxFor = '';
@@ -165,6 +194,7 @@ window.LHOwner = (function () {
       <p class="meta"><span>${U.payText(o)}</span>${o.big ? ' · <span>🚚 বড় জিনিস, ভ্যান বা পিকআপ আসবে</span>' : ''}</p>
       ${Store.isFinished(o) ? commissionLine(o) : ''}
       ${o.refund ? `<p class="meta o-wait">↩️ ${window.LHCare.refundText(o.refund)}</p>` : ''}
+      ${o.ret ? retOwnerHtml(o) : ''}
       ${o.proof ? (o.proof.pic ? `<p class="meta proof-line"><img class="proof-thumb" src="${o.proof.pic}" alt="ডেলিভারির ছবি"> <span>ডেলিভারির ছবি</span></p>` : `<p class="meta">📷 <span>ছবি ছাড়া ডেলিভারি</span>: ${U.ud(o.proof.reason)}</p>`) : ''}
       ${Store.isFinal(o) ? '' : `<p class="o-who">👤 ${U.ud(o.recipient.name)}${o.recipient.phone ? ` · <a href="tel:${U.esc(o.recipient.phone)}">${U.bn(o.recipient.phone)}</a>` : ''}${o.mode === 'delivery' || o.book === 'quote' ? `<br>📍 ${U.ud(o.recipient.line)}` : ''}${o.when ? `<br>🗓️ ${U.fmtWhen(o.when)}` : ''}${o.serial ? `<br>🎫 সিরিয়াল ${U.bn(o.serial)}` : ''}${o.patient ? `<br>🩺 ${Store.PATIENT[o.patient]}` : ''}</p>`}
       ${o.note && !Store.isFinal(o) ? `<p class="note">${U.ud(o.note)}</p>` : ''}
@@ -263,6 +293,7 @@ window.LHOwner = (function () {
           <label class="field"><span>প্রতি সময়ে কতজন / কয়টি সিট</span><input id="it-cap" type="text" inputmode="numeric" value="${it && it.cap ? U.bn(it.cap) : ''}"><small class="err" id="it-cap-err"></small></label>
           <label class="switch"><input type="checkbox" id="it-multi" ${it && it.multi ? 'checked' : ''}><span>একজন একাধিক নিতে পারবেন (যেমন বাসের সিট)</span></label>
         </div>
+        ${Store.isPharmacy(s) ? `<label class="switch gap-b"><input type="checkbox" id="it-noret" ${it && it.noReturn ? 'checked' : ''}><span>↩️ ফেরতযোগ্য নয় (যেমন ফ্রিজের ওষুধ)</span></label>` : ''}
         ${Store.isPharmacy(s) ? `<label class="switch gap-b"><input type="checkbox" id="it-rx" ${it && it.rx ? 'checked' : ''}><span>📄 প্রেসক্রিপশন লাগবে (শুধু প্রেসক্রিপশনের ছবিসহ অর্ডার)</span></label>` : ''}
         <fieldset class="field fs"><legend>আইকন</legend><div class="icon-pick">${(it && !ICONS.includes(it.icon) ? [it.icon] : []).concat(ICONS).map((ic, i) => `<label><input type="radio" name="it-icon" value="${ic}" ${(it ? it.icon === ic : i === 0) ? 'checked' : ''}><span>${ic}</span></label>`).join('')}</div></fieldset>
         <button type="submit" class="btn block sheet-go">সংরক্ষণ করুন</button>
@@ -490,6 +521,7 @@ window.LHOwner = (function () {
       </section>
       ${window.LHCats.ownerSection(s)}
       <form id="shop-form" class="panel shop-form" novalidate>
+        ${Store.isPharmacy(s) ? `<label class="field"><span>কত দিনের মধ্যে ওষুধ ফেরত নেবেন</span><input id="sh-ret" type="number" inputmode="numeric" min="0" max="30" value="${Store.returnDays(s)}"><small>এই কয় দিনের মধ্যে সিল করা ও মেয়াদ আছে এমন ওষুধ। ০ দিলে ফেরত নেই।</small></label>` : ''}
         <label class="switch big"><input type="checkbox" id="sh-open" ${s.open ? 'checked' : ''}><span>${s.open ? 'দোকান চালু আছে (সাপ্তাহিক সময় অনুযায়ী খোলা)' : 'দোকান সাময়িকভাবে বন্ধ'}</span></label>
         <label class="field"><span>দোকান / সেবার নাম</span><input id="sh-name" type="text" maxlength="80" value="${U.esc(s.name)}"><small class="err" id="sh-name-err"></small></label>
         ${s.kind === 'service' ? '' : '<p class="note">🛵 ডেলিভারি ম্যান ও ডেলিভারি চার্জ লোকালহাট ঠিক করে। অর্ডার গ্রহণ করলে এলাকার ডেলিভারি ম্যান অটোমেটিক খবর পাবেন।</p>'}
@@ -530,6 +562,8 @@ window.LHOwner = (function () {
     try {
       switch (d.own) {
         case 'order-tab': orderTab = d.id; U.route(true); break;
+        case 'ret-check': retCheckSheet(d.code); break;
+        case 'ret-cash': Store.retCashPaid(d.code); U.toast('নগদ ফেরত লেখা হয়েছে'); U.route(true); break;
         case 'rx-add': { const it = s.items.find((x) => x.id === d.id); if (it && !rxRows.some((r) => r.itemId === it.id)) rxRows.push({ itemId: it.id, name: it.name, unit: it.unit, qty: 1, price: it.price, rx: !!it.rx }); U.route(true); break; }
         case 'rx-del': rxRows.splice(Number(d.i), 1); U.route(true); break;
         case 'rx-free': {
@@ -617,6 +651,14 @@ window.LHOwner = (function () {
   }
   const show = (id, msg, focus) => { document.getElementById(id).textContent = msg; document.getElementById(focus).focus(); };
   function onSubmit(e) {
+    if (e.target.id === 'ret-check') {
+      e.preventDefault();
+      const f = e.target;
+      const o = Store.data.orders.find((x) => x.code === f.dataset.code);
+      const results = o.ret.lines.map((l, k) => ({ ok: f.querySelector(`[name="rc-${k}"]:checked`).value === 'ok', reason: document.getElementById('rc-why-' + k).value }));
+      try { Store.retCheck(f.dataset.code, results); U.closeSheet(); U.toast('সংরক্ষিত'); U.route(true); } catch (ex) { document.getElementById('rc-err').textContent = ex.message; }
+      return;
+    }
     const s = shop();
     const id = e.target.id;
     if (!['item-form', 'shop-form', 'cancel-form', 'offer-form', 'doc-form', 'test-form', 'route-form'].includes(id)) return;
@@ -667,7 +709,7 @@ window.LHOwner = (function () {
       // a big item goes by van or pickup; only a shop's products are delivered at all
       const bigBox = document.getElementById('it-big');
       const big = !!(bigBox && !document.getElementById('it-big-wrap').hidden && bigBox.checked && !book) || undefined;
-      try { Store.saveItem(s.id, itemDraft, { name, sub, book, trip, vehicle, big, rx: (document.getElementById('it-rx') || {}).checked || undefined, ...fixed, price: +price, unit: document.getElementById('it-unit').value.trim() || (kindOfSub(sub) === 'service' ? 'প্রতি সেবা' : '১ পিস'), icon: e.target.elements['it-icon'].value, ...(itemImage === undefined ? {} : { image: itemImage }) }); } catch (ex) { return show('it-img-err', ex.message, 'it-name'); }
+      try { Store.saveItem(s.id, itemDraft, { name, sub, book, trip, vehicle, big, rx: (document.getElementById('it-rx') || {}).checked || undefined, noReturn: (document.getElementById('it-noret') || {}).checked || undefined, ...fixed, price: +price, unit: document.getElementById('it-unit').value.trim() || (kindOfSub(sub) === 'service' ? 'প্রতি সেবা' : '১ পিস'), icon: e.target.elements['it-icon'].value, ...(itemImage === undefined ? {} : { image: itemImage }) }); } catch (ex) { return show('it-img-err', ex.message, 'it-name'); }
       U.closeSheet();
       U.toast(Store.subChoices(s).some((x) => x.sub === sub && x.state === 'wait') ? 'সংরক্ষিত। বিভাগ অনুমোদন হলে গ্রাহক দেখতে পাবেন।' : 'সংরক্ষিত');
       U.route(true);
@@ -678,6 +720,8 @@ window.LHOwner = (function () {
       if (!week) return;
       if (name !== s.name) s.verified = false; // the badge was given to the old name, as in server.js
       Object.assign(s, { name, about: document.getElementById('sh-about').value.trim(), week, open: document.getElementById('sh-open').checked });
+      const ret = document.getElementById('sh-ret');
+      if (ret) s.returnDays = Math.min(30, Math.max(0, Math.round(Number(ret.value) || 0)));
       Store.save();
       U.toast('সংরক্ষিত');
       U.route(true);
