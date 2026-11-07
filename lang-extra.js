@@ -1411,5 +1411,10 @@ Object.assign(window.LH_LANG.en, {
   'হেল্পলাইন': "Helpline",
   /* the map page: its own shop search above the category chips */
   'দোকান, পণ্য বা সেবা খুঁজুন': "Search shops, products or services",
-  'লেখা মুছুন': "Clear text"
+  'লেখা মুছুন': "Clear text",
+  /* Part 2: open now, and shops open 24 hours */
+  '🟢 এখন খোলা': "🟢 Open now",
+  '🕐 প্রতিদিন ২৪ ঘণ্টা খোলা': "🕐 Open 24 hours, every day",
+  'ফার্মেসি বা সারারাত খোলা দোকানের জন্য। টিক দিলে নিচের সময় লাগবে না।': "For a pharmacy or a shop open all night. With this ticked, the times below are not needed.",
+  '🕐 ২৪ ঘণ্টা খোলা': "🕐 Open 24 hours"
 });

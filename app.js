@@ -23,7 +23,7 @@
   const placeLine = (p) => (p.custom && p.line === p.area + ', ' + p.zila ? geo(p.area) + ', ' + geo(p.zila) : ud(p.line));
 
   // Screen state that does not need saving
-  const S = { q: '', cat: null, sub: null, filter: 'all', mapCat: null, mapSub: null, mapSel: null, mapView: 'map', gps: null, co: {}, after: null };
+  const S = { q: '', cat: null, sub: null, filter: 'all', openOnly: false, mapCat: null, mapSub: null, mapSel: null, mapView: 'map', gps: null, co: {}, after: null };
   // "View as customer" from the agent or admin panel: the customer's pages, nothing personal, and a way back. Kept for this tab only.
   const VIEW_KEY = 'lh-view-as';
   try { S.viewAs = JSON.parse(sessionStorage.getItem(VIEW_KEY) || 'null'); } catch (e) { S.viewAs = null; }
@@ -100,6 +100,13 @@
     return hits([s.name, s.market, s.about, ...words, ...s.items.filter((it) => it.available).map(itemText)].join(' , '), q);
   }
 
+  // "এখন খোলা": shops open at this moment by their own hours and switch, on home and on the map
+  const openChip = () => `<button type="button" class="chip chip-open ${S.openOnly ? 'on' : ''}" aria-pressed="${S.openOnly}" data-action="open-only">🟢 এখন খোলা</button>`;
+  // what a card says about now: open until when, or closed until when
+  function openLine(s) {
+    const st = Book.hoursStatus(s);
+    return `<p class="open-line ${st.open ? 'is-open' : 'is-shut'}"><span aria-hidden="true">${st.open ? '🟢' : '🔴'}</span> ${st.text}</p>`;
+  }
   function visibleShops() {
     const q = S.q.trim();
     return liveShops().filter((s) => {
@@ -108,6 +115,7 @@
       if (S.filter === 'shop' && s.kind !== 'shop') return false;
       if (S.filter === 'service' && s.kind !== 'service') return false;
       if (S.filter === 'verified' && !s.verified) return false;
+      if (S.openOnly && !Store.openNow(s)) return false;
       if (S.cat && S.sub && !s.items.some((it) => it.available && it.sub === S.sub)) return false;
       return matchShop(s, q);
     });
@@ -224,8 +232,9 @@
       <div class="shop-body">
         <h3>${ud(s.name)}</h3>
         <p class="meta">${esc(c.short)} · ${ud(s.market)}</p>
+        ${openLine(s)}
         ${hits.length ? `<p class="hit">পাওয়া গেছে: ${hits.slice(0, 2).map((i) => ud(i.name) + (i.price ? ' ' + tk(i.price) : '')).join(', ')}</p>` : ''}
-        <p class="facts"><span>${Store.isEmergency(s) ? '🚑 ২৪ ঘণ্টা জরুরি সেবা' : s.kind === 'service' ? '🗓️ সেবা বুকিং' : '🛵 হোম ডেলিভারি'}</span><span class="new">${Rate.badge('shop', s.id, 'নতুন')}</span></p>
+        <p class="facts"><span>${Store.isEmergency(s) ? '🚑 ২৪ ঘণ্টা জরুরি সেবা' : s.kind === 'service' ? '🗓️ সেবা বুকিং' : '🛵 হোম ডেলিভারি'}</span>${Store.allDay(s) && !Store.isEmergency(s) ? '<span class="tag24">🕐 ২৪ ঘণ্টা খোলা</span>' : ''}<span class="new">${Rate.badge('shop', s.id, 'নতুন')}</span></p>
       </div>
     </a>`;
   }
@@ -421,7 +430,7 @@
       <section id="found">${foundHtml()}</section>
       <section id="shops" ${S.cat && !visibleShops().length ? 'hidden' : ''}>
         <div class="sec-head"><h2>${S.cat ? 'এই ক্যাটাগরির দোকান' : `${geo(p.area)} এর দোকান ও সেবা`}</h2></div>
-        <div class="chips" role="group" aria-label="ফিল্টার">${chip('all', 'সব')}${chip('shop', 'দোকান')}${chip('service', 'সেবা')}${chip('verified', '✓ যাচাইকৃত')}</div>
+        <div class="chips" role="group" aria-label="ফিল্টার">${chip('all', 'সব')}${chip('shop', 'দোকান')}${chip('service', 'সেবা')}${chip('verified', '✓ যাচাইকৃত')}${openChip()}</div>
         <div id="list">${listHtml()}</div>
       </section>`;
   }
@@ -443,7 +452,7 @@
     const sold = (s) => (ranks[s.id] ? ranks[s.id].orders : 0);
     return near
       .map((s) => ({ s, km: Map_.km(ref, s), top: ranks[s.id] || null }))
-      .filter((r) => (!S.mapCat || Store.inCat(r.s, S.mapCat)) && (!S.mapSub || r.s.items.some((it) => it.available && subHas(catById(S.mapCat), S.mapSub, it))) && matchShop(r.s, q))
+      .filter((r) => (!S.openOnly || Store.openNow(r.s)) && (!S.mapCat || Store.inCat(r.s, S.mapCat)) && (!S.mapSub || r.s.items.some((it) => it.available && subHas(catById(S.mapCat), S.mapSub, it))) && matchShop(r.s, q))
       .sort((a, b) => (S.mapSort === 'sales' ? sold(b.s) - sold(a.s) || a.km - b.km : a.km - b.km))
       .map((r, i) => Object.assign(r, { n: i + 1 }));
   }
@@ -463,7 +472,8 @@
           <h3>${ud(s.name)}</h3>
           <p class="meta">${esc(c.short)} · ${kmText(r.km)} দূরে${s.verified ? ' · ✓ যাচাইকৃত' : ''}</p>
           ${r.top ? `<p class="mtop">🏆 এলাকায় বিক্রিতে #${bn(r.top.rank)} · গত ৩০ দিনে ${bn(r.top.orders)}টি অর্ডার</p>` : ''}
-          <p class="meta">${Book.hoursStatus(s).text} · ${s.kind === 'service' ? 'সেবা' : 'হোম ডেলিভারি'}${Store.ratingSummary('shop', s.id).n ? ' · ' + Rate.badge('shop', s.id, '') : ''}</p>
+          ${openLine(s)}
+          <p class="meta">${s.kind === 'service' ? 'সেবা' : 'হোম ডেলিভারি'}${Store.allDay(s) ? ' · <span>🕐 ২৪ ঘণ্টা খোলা</span>' : ''}${Store.ratingSummary('shop', s.id).n ? ' · ' + Rate.badge('shop', s.id, '') : ''}</p>
         </div>
       </div>
       ${hits.slice(0, 3).map((it) => `<div class="mhit"><span>${it.icon} ${ud(it.name)} <small>${ud(it.unit)}</small> <b>${Book.priceHtml(it)}</b></span>
@@ -485,6 +495,7 @@
             <button type="button" class="mp-search-x" id="map-shop-x" data-action="map-shop-clear" aria-label="লেখা মুছুন" ${S.q ? '' : 'hidden'}>✕</button>
           </form>
           <div class="mp-chips" role="group" aria-label="ক্যাটাগরি ফিল্টার">
+            ${openChip()}
             <button type="button" class="chip ${S.mapCat ? '' : 'on'}" aria-pressed="${!S.mapCat}" data-action="map-cat" data-id="">সব</button>
             ${cats.map((c) => `<button type="button" class="chip ${S.mapCat === c.id ? 'on' : ''}" aria-pressed="${S.mapCat === c.id}" data-action="map-cat" data-id="${c.id}">${c.icon} ${c.short}</button>`).join('')}
           </div>
@@ -1338,7 +1349,12 @@
         $('cat-sec').scrollIntoView({ block: 'start' });
         break;
       }
-      case 'clear': S.cat = null; S.sub = null; S.filter = 'all'; S.q = ''; route(true); break;
+      case 'clear': S.cat = null; S.sub = null; S.filter = 'all'; S.openOnly = false; S.q = ''; route(true); break;
+      case 'open-only':
+        S.openOnly = !S.openOnly;
+        document.querySelectorAll('[data-action=open-only]').forEach((b) => { b.classList.toggle('on', S.openOnly); b.setAttribute('aria-pressed', S.openOnly); });
+        if (document.body.dataset.page === 'map') { S.mapSel = null; refreshMap(true); } else route(true);
+        break;
       case 'map-cat': {
         const left = el.parentNode.scrollLeft;
         S.mapCat = d.id || null;
@@ -1354,7 +1370,7 @@
         refreshMap(true);
         break;
       case 'map-clear':
-        S.mapCat = null; S.mapSub = null; S.q = ''; route(true);
+        S.mapCat = null; S.mapSub = null; S.openOnly = false; S.q = ''; route(true);
         break;
       case 'map-pick': pickOnMap(d.id, false); break;
       case 'map-shop-clear': clearMapShop(); break;

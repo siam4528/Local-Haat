@@ -1205,3 +1205,15 @@ body[data-page="map"] .top-in > .search { display: none; }
   .is-map .mp-tools, .is-map .mp-toggle { top: 164px; }
   .is-map.has-subs .mp-tools, .is-map.has-subs .mp-toggle { top: 212px; }
 }
+
+/* Part 2: open now */
+.open-line { margin: 3px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+.open-line.is-open { color: var(--ok); }
+.open-line.is-shut { color: var(--danger); }
+.mcard .open-line { font-size: 13px; }
+.chip-open { border-color: var(--ok); color: var(--ok); font-weight: 600; }
+.chip-open.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+.tag24 { padding: 0 8px; border-radius: 6px; background: var(--ok-soft); color: #075a3c; font-size: 12.5px; font-weight: 600; }
+.h24-line { margin: 4px 0 0; font-weight: 600; color: var(--ok); }
+.wk-24 { margin: 6px 0 2px; font-weight: 600; }
+.wk-days[hidden] { display: none; }

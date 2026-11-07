@@ -414,6 +414,8 @@ window.LHStore = (function () {
     return !!prev && !prev.off && minutes(prev.e) < minutes(prev.o) && now <= minutes(prev.e);
   }
   const openNow = (s, date) => !!s.open && !s.suspended && openAt(s, date || new Date());
+  // open round the clock every day, as a pharmacy can mark itself
+  const allDay = (s) => !!s.week && s.week.length === 7 && s.week.every((w) => w && !w.off && w.o === '00:00' && w.e === '23:59');
   // a shop closed only by the clock still takes orders for a time it is open; one the agent closed for now does not
   const canBook = (s) => !!s.open && !s.suspended && !s.hidden && (!s.week || s.week.some((w) => w && !w.off));
   // the LocalHaat team can suspend a shop; an unverified owner's shop is hidden until the owner verifies
@@ -2385,7 +2387,7 @@ window.LHStore = (function () {
   }
   return {
     get data() { return data; },
-    save, reset, reload, hash, KEY, shopById, flow, next, label, isFinal, LABELS, openNow,
+    save, reset, reload, hash, KEY, shopById, flow, next, label, isFinal, LABELS, openNow, allDay,
     book, seatsLeft, bookLines, offerOn, setupOf, PATIENT, today: todayStr, offer, agree, rejectOffer, chatOf, chatsOf, chatSend, chatShare, chatImage, chatUnsend, chatSeen,
     deliveryFee: () => data.deliveryFee, deliveryFeeNext: () => data.deliveryFeeNext, deliveryFees, deliveryQuote, setDeliveryFees, setCharges, isAdmin: () => !!teamMe(),
     checkOrders, PAID_WORD, BIG_VEHICLES, needsLicence, riderPapers, rejectRider, riderLive, kmBetween, money, orderMoney,

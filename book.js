@@ -69,14 +69,20 @@ window.LHBook = (function () {
   }
   function hoursTable(s) {
     if (!s.week) return '<p class="meta">এই দোকান এখনো সাপ্তাহিক সময় জানায়নি।</p>';
+    if (Store.allDay(s)) return '<p class="h24-line">🕐 প্রতিদিন ২৪ ঘণ্টা খোলা</p>';
     const today = window.LHTime.parts().wd;
     return `<ul class="hours">${WEEK_ORDER.map((d) => {
       const w = s.week[d];
       return `<li class="${d === today ? 'today' : ''}"><span>${DAYS[d]}</span><b class="${w.off ? 'off' : ''}">${w.off ? 'বন্ধ' : allDay(w) ? '২৪ ঘণ্টা' : `${clock(w.o)} - ${clock(w.e)}`}</b></li>`;
     }).join('')}</ul>`;
   }
+  // a 24-hour shop (a pharmacy, say) ticks one box instead of filling every day
   function weekEditor(s) {
+    const h24 = !!s.week && Store.allDay(s);
     return `<fieldset class="field fs week-edit" id="hours"><legend>সাপ্তাহিক সময়</legend>
+      <label class="chk wk-24"><input type="checkbox" id="wk-24" ${h24 ? 'checked' : ''}><span>🕐 প্রতিদিন ২৪ ঘণ্টা খোলা</span></label>
+      <small>ফার্মেসি বা সারারাত খোলা দোকানের জন্য। টিক দিলে নিচের সময় লাগবে না।</small>
+      <div class="wk-days" ${h24 ? 'hidden' : ''}>
       <small>গ্রাহক প্রতিটি দিনের খোলা ও বন্ধের সময় দেখবেন। বন্ধের দিনের টিক তুলে দিন।</small>
       ${WEEK_ORDER.map((d) => {
         const w = (s.week && s.week[d]) || { o: '09:00', e: '21:00' };
@@ -84,11 +90,12 @@ window.LHBook = (function () {
           <input type="time" id="wk-o-${d}" value="${w.o || '09:00'}" aria-label="${DAYS[d]} খোলার সময়" ${w.off ? 'disabled' : ''}>
           <input type="time" id="wk-e-${d}" value="${w.e || '21:00'}" aria-label="${DAYS[d]} বন্ধের সময়" ${w.off ? 'disabled' : ''}></div>`;
       }).join('')}
-      <button type="button" class="inline" data-book="week-copy">প্রথম দিনের সময় সব দিনে দিন</button>
+      <button type="button" class="inline" data-book="week-copy">প্রথম দিনের সময় সব দিনে দিন</button></div>
       <small class="err" id="wk-err"></small></fieldset>`;
   }
   // null when a row is wrong; the message is already on screen
   function readWeek() {
+    if ($('wk-24') && $('wk-24').checked) { $('wk-err').textContent = ''; return [0, 1, 2, 3, 4, 5, 6].map(() => ({ o: '00:00', e: '23:59' })); }
     const week = [];
     for (let d = 0; d < 7; d++) {
       if (!$('wk-on-' + d).checked) { week[d] = { off: true }; continue; }
@@ -883,6 +890,12 @@ window.LHBook = (function () {
     if (e.target.name === 'b-patient') { U.route(true); return; }
     const more = e.target.dataset && e.target.dataset.more;
     if (more) { bd.more = e.target.checked ? bd.more.concat(more) : bd.more.filter((x) => x !== more); U.route(true); return; }
+    if (e.target.id === 'wk-24') {
+      document.querySelector('.wk-days').hidden = e.target.checked;
+      // leaving 24 hours: days still at 00:00-23:59 start from ordinary hours instead
+      if (!e.target.checked) for (let d = 0; d < 7; d++) { if ($('wk-o-' + d).value === '00:00' && $('wk-e-' + d).value === '23:59') { $('wk-o-' + d).value = '09:00'; $('wk-e-' + d).value = '21:00'; } }
+      return;
+    }
     const on = e.target.dataset && e.target.dataset.wkOn;
     if (on !== undefined) {
       $('wk-o-' + on).disabled = !e.target.checked;
