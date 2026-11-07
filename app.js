@@ -162,7 +162,8 @@
     const p = place();
     const n = cartCount();
     const h = location.hash || '#/';
-    const showSearch = h === '#/' || h === '#/map';
+    // the map page has its own shop search above the category chips
+    const showSearch = h === '#/';
     $('top').innerHTML = `${S.viewAs ? viewBar() : ''}
       <div class="top-in">
         <a class="brand" href="#/" data-action="go-home" aria-label="লোকালহাট হোম"><span class="mark" aria-hidden="true">হ</span><span class="brand-name">লোকালহাট</span></a>
@@ -477,6 +478,12 @@
     return `<div class="mp is-${S.mapView}" id="mp">
       <div class="mp-side">
         <div class="mp-head">
+          <form id="map-shop" class="mp-shop" role="search" autocomplete="off" novalidate>
+            <label class="sr" for="map-shop-q">দোকান, পণ্য বা সেবা খুঁজুন</label>
+            <span aria-hidden="true" class="s-ico">🛍️</span>
+            <input id="map-shop-q" type="search" maxlength="100" placeholder="দোকান, পণ্য বা সেবা খুঁজুন" value="${esc(S.q)}">
+            <button type="button" class="mp-search-x" id="map-shop-x" data-action="map-shop-clear" aria-label="লেখা মুছুন" ${S.q ? '' : 'hidden'}>✕</button>
+          </form>
           <div class="mp-chips" role="group" aria-label="ক্যাটাগরি ফিল্টার">
             <button type="button" class="chip ${S.mapCat ? '' : 'on'}" aria-pressed="${!S.mapCat}" data-action="map-cat" data-id="">সব</button>
             ${cats.map((c) => `<button type="button" class="chip ${S.mapCat === c.id ? 'on' : ''}" aria-pressed="${S.mapCat === c.id}" data-action="map-cat" data-id="${c.id}">${c.icon} ${c.short}</button>`).join('')}
@@ -527,6 +534,16 @@
     $('mp-count').textContent = rows.length ? `${ref.label} থেকে কাছের ${bn(rows.length)}টি জায়গা` : '';
     list.innerHTML = rows.length ? rows.map(mapCard).join('') : `<div class="empty"><span aria-hidden="true">🗺️</span><h3>এই এলাকায় কিছু পাওয়া যায়নি</h3><p>অন্য শব্দ বা ক্যাটাগরি দেখুন, অথবা ঠিকানা বদলান।</p><button type="button" class="btn ghost" data-action="map-clear">ফিল্টার মুছুন</button></div>`;
     Map_.setPins(rows.map((r) => ({ id: r.s.id, lat: r.s.lat, lng: r.s.lng, n: bn(r.n), title: keep(r.s.name) })), ref, S.mapSel, fit);
+  }
+  // the shop search box empties, the list follows, and the cursor stays in the box
+  function clearMapShop() {
+    const box = $('map-shop-q');
+    if (!box) return;
+    S.q = ''; S.mapSel = null;
+    box.value = '';
+    $('map-shop-x').hidden = true;
+    refreshMap(true);
+    box.focus();
   }
   function pickOnMap(id, scroll) {
     S.mapSel = id;
@@ -1339,6 +1356,7 @@
         S.mapCat = null; S.mapSub = null; S.q = ''; route(true);
         break;
       case 'map-pick': pickOnMap(d.id, false); break;
+      case 'map-shop-clear': clearMapShop(); break;
       case 'map-sort':
         S.mapSort = d.id;
         document.querySelectorAll('[data-action=map-sort]').forEach((b) => { b.classList.toggle('on', b === el); b.setAttribute('aria-pressed', b === el); });
@@ -1421,6 +1439,7 @@
     route(true);
   });
   document.addEventListener('input', (e) => {
+    if (e.target.id === 'map-shop-q') { S.q = e.target.value; $('map-shop-x').hidden = !S.q; S.mapSel = null; refreshMap(true); return; }
     if (e.target.id === 'map-q') { S.mapQ = e.target.value; $('map-q-x').hidden = !S.mapQ; mapAsk += 1; mapSuggest(S.mapQ); return; }
     if (e.target.id === 'place-q') { $('place-results').innerHTML = placeRows(e.target.value); return; }
     const k = e.target.dataset && e.target.dataset.co;
@@ -1442,6 +1461,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && $('sheet').innerHTML) closeSheet();
     if (e.key === 'Escape' && e.target.id === 'map-q') mapFound('');
+    if (e.key === 'Escape' && e.target.id === 'map-shop-q') { e.preventDefault(); clearMapShop(); return; }
     if (e.key === 'Enter' && e.target.id === 'place-q') { const first = document.querySelector('#place-results button'); if (first) first.click(); return; }
     if (e.key === 'Enter' && e.target.id === 'c-offer') { e.preventDefault(); applyOffer(S.co.offerInput || ''); return; }
     if (e.key === 'Enter' && e.target.id === 'q') {
@@ -1492,6 +1512,12 @@
     } catch (ex) { toast(ex.message); route(true); }
   });
 
+  // Enter in the shop search only closes the phone's keyboard; the list already shows the results
+  document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'map-shop') return;
+    e.preventDefault();
+    $('map-shop-q').blur();
+  });
   document.addEventListener('submit', (e) => {
     if (e.target.id !== 'map-search') return;
     e.preventDefault();

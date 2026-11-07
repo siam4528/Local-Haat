@@ -1408,5 +1408,8 @@ Object.assign(window.LH_LANG.en, {
   'বড় জিনিসের চার্জ': "Charge for big items",
   'বড় জিনিসে প্রতি কিমি': "Per km for big items",
   'কমিশন (%)': "Commission (%)",
-  'হেল্পলাইন': "Helpline"
+  'হেল্পলাইন': "Helpline",
+  /* the map page: its own shop search above the category chips */
+  'দোকান, পণ্য বা সেবা খুঁজুন': "Search shops, products or services",
+  'লেখা মুছুন': "Clear text"
 });

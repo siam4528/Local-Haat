@@ -1187,3 +1187,21 @@ h4.ad-upa { margin: 12px 0 8px; font-size: 15px; }
 .aud-change { font-weight: 600; }
 .set-hist td { overflow-wrap: anywhere; }
 .set-hist th, .set-hist td { text-align: left; }
+
+/* the map's shop search: in the side panel above the category chips, apart from the place search over the map */
+body[data-page="map"] .top-in > .search { display: none; }
+.mp-shop { position: relative; display: flex; align-items: center; gap: 4px; margin: 8px 10px 0; padding: 3px 3px 3px 38px; background: var(--card); border: 2px solid var(--brand); border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.2); pointer-events: auto; }
+.mp-shop .s-ico { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: 17px; pointer-events: none; }
+.mp-shop input { flex: 1; min-width: 0; min-height: 40px; padding: 0 2px; background: none; border: 0; outline: none; }
+.mp-shop input::-webkit-search-cancel-button { display: none; }
+.mp-shop:focus-within { box-shadow: 0 0 0 3px var(--soft), 0 2px 10px rgba(0,0,0,.2); }
+.mp-shop .mp-search-x[hidden] { display: none; }
+@media (max-width: 959px) {
+  /* the box takes one row above the chips (58px with its margin): what sat under the chips moves down by it */
+  .mp-search { top: 112px; }
+  .has-subs .mp-search { top: 160px; }
+  .mp-tools, .mp-toggle { top: 116px; }
+  .has-subs .mp-tools, .has-subs .mp-toggle { top: 160px; }
+  .is-map .mp-tools, .is-map .mp-toggle { top: 164px; }
+  .is-map.has-subs .mp-tools, .is-map.has-subs .mp-toggle { top: 212px; }
+}
