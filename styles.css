@@ -1217,3 +1217,15 @@ body[data-page="map"] .top-in > .search { display: none; }
 .h24-line { margin: 4px 0 0; font-weight: 600; color: var(--ok); }
 .wk-24 { margin: 6px 0 2px; font-weight: 600; }
 .wk-days[hidden] { display: none; }
+
+/* Part 3: favourite shops */
+.shop-wrap { position: relative; }
+.shop-wrap > .shop { height: 100%; }
+.fav-btn { position: absolute; z-index: 2; top: 70px; right: 10px; width: 38px; height: 38px; display: grid; place-items: center; padding: 0; font-size: 21px; line-height: 1; color: var(--brand); background: var(--card); border: 0; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,.22); cursor: pointer; }
+.fav-btn.on { color: #d6224a; }
+.mcard-top { position: relative; }
+.mcard-top .fav-btn { position: static; flex: none; margin-left: auto; width: 34px; height: 34px; font-size: 19px; box-shadow: 0 1px 5px rgba(0,0,0,.2); }
+.ph-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.fav-pill { flex: none; margin-top: 2px; }
+.fav-pill.on { color: #d6224a; border-color: #d6224a; }
+.favs-row .best-txt .open-line { font-size: 12.5px; }

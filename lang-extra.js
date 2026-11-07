@@ -1416,5 +1416,20 @@ Object.assign(window.LH_LANG.en, {
   '🟢 এখন খোলা': "🟢 Open now",
   '🕐 প্রতিদিন ২৪ ঘণ্টা খোলা': "🕐 Open 24 hours, every day",
   'ফার্মেসি বা সারারাত খোলা দোকানের জন্য। টিক দিলে নিচের সময় লাগবে না।': "For a pharmacy or a shop open all night. With this ticked, the times below are not needed.",
-  '🕐 ২৪ ঘণ্টা খোলা': "🕐 Open 24 hours"
+  '🕐 ২৪ ঘণ্টা খোলা': "🕐 Open 24 hours",
+  /* Part 3: favourite shops */
+  'প্রিয় থেকে সরান': "Remove from favourites",
+  'প্রিয় দোকানে রাখুন': "Add to favourites",
+  '♥ প্রিয়': "♥ Favourite",
+  '♡ প্রিয়': "♡ Favourite",
+  '❤️ আপনার প্রিয় দোকান': "❤️ Your favourite shops",
+  'প্রিয় দোকান দেখতে লগইন করুন': "Log in to see your favourite shops",
+  'এখনো কোনো প্রিয় দোকান নেই': "No favourite shops yet",
+  'দোকানের কার্ড বা পাতায় ♡ চাপুন, এখানে জমা থাকবে।': "Tap ♡ on a shop card or page and it is kept here.",
+  '‹ আমার একাউন্ট': "‹ My account",
+  '❤️ প্রিয় দোকান': "❤️ Favourite shops",
+  'দেখার মোডে প্রিয় দোকানে রাখা যায় না': "Favourites cannot be added while only viewing",
+  'প্রিয় দোকানে রাখতে লগইন করুন': "Log in to keep favourite shops",
+  'প্রিয় দোকানে রাখা হয়েছে': "Added to favourites",
+  'প্রিয় থেকে সরানো হয়েছে': "Removed from favourites"
 });

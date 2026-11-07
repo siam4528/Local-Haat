@@ -484,6 +484,19 @@ window.LHStore = (function () {
     save();
   }
 
+  /* ---------- a customer's favourite shops ---------- */
+  function toggleFav(shopId) {
+    const me = data.accounts.find((a) => a.id === data.sessions.customer && a.role === 'customer') || fail('প্রিয় দোকানে রাখতে লগইন করুন');
+    if (!shopById(shopId)) fail('দোকান পাওয়া যায়নি');
+    const was = me.favs || [];
+    const on = !was.includes(shopId);
+    me.favs = on ? was.concat(shopId) : was.filter((x) => x !== shopId);
+    save();
+    return on;
+  }
+  // the ones customers can see now, in the order they were added
+  const favsOf = (me) => ((me && me.favs) || []).map(shopById).filter((x) => x && shopLive(x));
+
   /* ---------- delivery charge: by distance; a big item goes by van or pickup ---------- */
   const placeById = (id) => window.LH.places.concat(data.extraPlaces).find((p) => p.id === id) || window.LH.places[0];
   // straight-line distance; the real app can ask a road map for the distance by road
@@ -2387,7 +2400,7 @@ window.LHStore = (function () {
   }
   return {
     get data() { return data; },
-    save, reset, reload, hash, KEY, shopById, flow, next, label, isFinal, LABELS, openNow, allDay,
+    save, reset, reload, hash, KEY, shopById, toggleFav, favsOf, flow, next, label, isFinal, LABELS, openNow, allDay,
     book, seatsLeft, bookLines, offerOn, setupOf, PATIENT, today: todayStr, offer, agree, rejectOffer, chatOf, chatsOf, chatSend, chatShare, chatImage, chatUnsend, chatSeen,
     deliveryFee: () => data.deliveryFee, deliveryFeeNext: () => data.deliveryFeeNext, deliveryFees, deliveryQuote, setDeliveryFees, setCharges, isAdmin: () => !!teamMe(),
     checkOrders, PAID_WORD, BIG_VEHICLES, needsLicence, riderPapers, rejectRider, riderLive, kmBetween, money, orderMoney,

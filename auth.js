@@ -364,7 +364,7 @@ window.LHAuth = (function () {
     const r = ROLES[role];
     const shop = me.shopId ? Store.shopById(me.shopId) : null;
     const next = {
-      customer: '<a class="btn block" href="#/">বাজার শুরু করুন</a>',
+      customer: `<a class="btn ghost block gap-b" href="#/favs"><span>❤️ প্রিয় দোকান</span>${(me.favs || []).length ? ` (${H.bn(Store.favsOf(me).length)})` : ''}</a><a class="btn block" href="#/">বাজার শুরু করুন</a>`,
       owner: `<p class="note">${me.verified ? `${shop ? H.ud(shop.name) : 'আপনার দোকান'} এখন গ্রাহকরা দেখতে পাবেন।` : 'ভেরিফাই না করা পর্যন্ত দোকান গ্রাহকদের কাছে লুকানো থাকবে।'}</p><a class="btn block" href="#/owner">প্যানেলে যান</a>`,
       delivery: `<p class="note">আপনার এলাকার দোকান অর্ডার গ্রহণ করলে কাজ অটোমেটিক আসবে।${me.approved === false ? ' আগে এনআইডি ও কাগজ জমা দিন, লোকালহাট টিম যাচাই করে অনুমোদন দেবে।' : ''}</p>
         ${me.approved === false && !(me.kyc && me.kyc.status === 'pending') ? '<a class="btn ghost block gap-b" href="#/rider/papers">📄 কাগজ জমা দিন</a>' : ''}<a class="btn block" href="#/rider">আজকের কাজ দেখুন</a>`

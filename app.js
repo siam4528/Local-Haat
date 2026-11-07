@@ -221,10 +221,44 @@
   const coverHtml = (s) => (s.cover ? `<img class="cover-img" src="${s.cover}" alt="">` : `<span class="cover-ico" aria-hidden="true">${s.icon}</span>`);
   const thumbHtml = (it) => (it.image ? `<span class="thumb"><img src="${it.image}" alt=""></span>` : `<span class="thumb" aria-hidden="true">${it.icon}</span>`);
 
+  /* ---------- favourite shops ---------- */
+  const meCustomer = () => (S.viewAs ? null : window.LHAuth.current('customer'));
+  const isFav = (s) => { const me = meCustomer(); return !!me && (me.favs || []).includes(s.id); };
+  // a heart, or a labelled button on the shop page; while only viewing there is none
+  function favBtn(s, big) {
+    if (S.viewAs) return '';
+    const on = isFav(s);
+    const label = on ? 'প্রিয় থেকে সরান' : 'প্রিয় দোকানে রাখুন';
+    return big ? `<button type="button" class="btn ghost sm fav-pill ${on ? 'on' : ''}" aria-pressed="${on}" data-action="fav" data-id="${s.id}">${on ? '♥ প্রিয়' : '♡ প্রিয়'}</button>`
+      : `<button type="button" class="fav-btn ${on ? 'on' : ''}" aria-pressed="${on}" data-action="fav" data-id="${s.id}" aria-label="${label}" title="${label}">${on ? '♥' : '♡'}</button>`;
+  }
+  // the favourites in the chosen area, at the top of home
+  function favsRowHtml(p) {
+    const me = meCustomer();
+    const list = Store.favsOf(me).filter((x) => sameArea(x, p));
+    if (!list.length) return '';
+    return `<section class="bests favs-row" aria-labelledby="fav-h">
+      <div class="rail-head"><h2 id="fav-h">❤️ আপনার প্রিয় দোকান</h2><a class="inline" href="#/favs">সব দেখুন</a></div>
+      <div class="rail best-rail">${list.map((x) => `<a class="best" href="#/shop/${x.id}">${logoHtml(x, 'best-logo')}<span class="best-txt"><b>${ud(x.name)}</b>${openLine(x)}</span></a>`).join('')}</div>
+    </section>`;
+  }
+  function pageFavs() {
+    const me = meCustomer();
+    if (!me) {
+      S.after = '#/favs';
+      return '<div class="empty big"><span aria-hidden="true">❤️</span><h1>প্রিয় দোকান দেখতে লগইন করুন</h1><a class="btn" href="#/auth/customer/login">লগইন করুন</a></div>';
+    }
+    const list = Store.favsOf(me);
+    if (!list.length) return '<div class="empty big"><span aria-hidden="true">♡</span><h1>এখনো কোনো প্রিয় দোকান নেই</h1><p>দোকানের কার্ড বা পাতায় ♡ চাপুন, এখানে জমা থাকবে।</p><a class="btn" href="#/">দোকান দেখুন</a></div>';
+    // by area: the parents' upazila apart from one's own
+    const areas = [...new Set(list.map((x) => (x.zila || '') + '|' + x.area))];
+    return `<a class="back" href="#/account/customer">‹ আমার একাউন্ট</a><h1 class="page-h">❤️ প্রিয় দোকান</h1>
+      ${areas.map((k) => { const [z, a] = k.split('|'); const here = list.filter((x) => (x.zila || '') + '|' + x.area === k); return `<h2 class="gap-t">📍 ${geo(a)}${z ? ', ' + geo(z) : ''}</h2><div class="grid">${here.map(shopCard).join('')}</div>`; }).join('')}`;
+  }
   function shopCard(s) {
     const c = catById(s.cat);
     const hits = matchItems(s, S.q.trim());
-    return `<a class="shop" href="#/shop/${s.id}">
+    return `<div class="shop-wrap">${favBtn(s)}<a class="shop" href="#/shop/${s.id}">
       <div class="cover" style="--tint:${c.tint}">${coverHtml(s)}
         ${s.verified ? '<em class="tick">✓ যাচাইকৃত</em>' : ''}${Store.openNow(s) ? '' : '<em class="closed">বন্ধ</em>'}
       </div>
@@ -236,7 +270,7 @@
         ${hits.length ? `<p class="hit">পাওয়া গেছে: ${hits.slice(0, 2).map((i) => ud(i.name) + (i.price ? ' ' + tk(i.price) : '')).join(', ')}</p>` : ''}
         <p class="facts"><span>${Store.isEmergency(s) ? '🚑 ২৪ ঘণ্টা জরুরি সেবা' : s.kind === 'service' ? '🗓️ সেবা বুকিং' : '🛵 হোম ডেলিভারি'}</span>${Store.allDay(s) && !Store.isEmergency(s) ? '<span class="tag24">🕐 ২৪ ঘণ্টা খোলা</span>' : ''}<span class="new">${Rate.badge('shop', s.id, 'নতুন')}</span></p>
       </div>
-    </a>`;
+    </a></div>`;
   }
   function listHtml() {
     const list = visibleShops();
@@ -419,6 +453,7 @@
             <span class="cat-ico" style="--tint:${c.tint}" aria-hidden="true">${c.icon}</span>${c.short}</button>`).join('')}
         </div>
       </section>
+      ${S.cat || S.q.trim() ? '' : favsRowHtml(p)}
       ${S.cat ? '' : topHtml(p)}
       ${catSectionHtml()}
       ${S.cat ? '' : promosHtml()}
@@ -468,6 +503,7 @@
       <div class="mcard-top">
         <span class="mnum" aria-hidden="true">${bn(r.n)}</span>
         ${s.logo ? logoHtml(s, 'mcard-logo') : ''}
+        ${favBtn(s)}
         <div class="mcard-txt">
           <h3>${ud(s.name)}</h3>
           <p class="meta">${esc(c.short)} · ${kmText(r.km)} দূরে${s.verified ? ' · ✓ যাচাইকৃত' : ''}</p>
@@ -728,7 +764,7 @@
         <div class="profile-body">
           ${logoHtml(s, 'profile-logo')}
           <div class="profile-head">
-            <h1>${ud(s.name)}</h1>
+            <div class="ph-row"><h1>${ud(s.name)}</h1>${favBtn(s, true)}</div>
             <p class="profile-sub">${esc(c.label)}</p>
             <p class="meta"><a class="inline-link" href="#shop-info" data-action="to-info">📍 ${ud(s.market)}, ${geo(s.area)}</a> · ${clinic ? clinicCount(s) : `${bn(avail.length)}টি ${word} আছে`}</p>
           </div>
@@ -1201,6 +1237,7 @@
     else if (page === 'checkout') html = pageCheckout();
     else if (page === 'track') html = pageTrack(parts[1]);
     else if (page === 'orders') html = pageOrders();
+    else if (page === 'favs') html = parts[1] ? null : pageFavs();
     else if (page === 'auth') html = window.LHAuth.page(parts.slice(1));
     else if (page === 'account') html = window.LHAuth.account(parts[1] || 'customer');
     else if (page === 'owner') html = window.LHOwner.page(parts.slice(1));
@@ -1325,6 +1362,18 @@
         try { goToPlace(Store.addAreaPlace(d.zila, d.area).id); } catch (ex) { toast(ex.message); }
         break;
       case 'pick-place': goToPlace(d.id, d.keepq); break;
+      case 'fav': {
+        if (S.viewAs) { toast('দেখার মোডে প্রিয় দোকানে রাখা যায় না'); break; }
+        // without a login: log in first, then come back here
+        if (!meCustomer()) { S.after = location.hash || '#/'; toast('প্রিয় দোকানে রাখতে লগইন করুন'); location.hash = '#/auth/customer/login'; break; }
+        const on = Store.toggleFav(d.id);
+        toast(on ? 'প্রিয় দোকানে রাখা হয়েছে' : 'প্রিয় থেকে সরানো হয়েছে');
+        if (location.hash === '#/favs' || document.body.dataset.page === 'home') { route(true); break; }
+        // elsewhere the hearts change in place, so the page keeps its scroll and the map its view
+        const s = Store.shopById(d.id);
+        document.querySelectorAll(`[data-action=fav][data-id="${d.id}"]`).forEach((b) => { b.outerHTML = favBtn(s, b.classList.contains('fav-pill')); });
+        break;
+      }
       case 'filter':
         S.filter = S.filter === d.id && d.id !== 'all' ? 'all' : d.id;
         if (el.classList.contains('tile')) goToShops(); else route(true);
