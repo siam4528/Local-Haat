@@ -1247,3 +1247,14 @@ body[data-page="map"] .top-in > .search { display: none; }
 .re-qty input { width: 52px; min-height: 36px; text-align: center; border: 1.5px solid var(--line); border-radius: 9px; }
 .re-price { text-align: right; }
 .re-price small { display: block; color: var(--muted); text-decoration: line-through; }
+
+/* Part 5: shops the team adds, the owner's claim, shop visits */
+.ns-item { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 6px; margin-top: 6px; }
+.ns-item input { min-width: 0; width: 100%; }
+.claim-shop { display: flex; flex-direction: column; margin: 10px 0; padding: 10px 12px; background: var(--soft); border-radius: 12px; }
+.claim-shop small { color: var(--muted); }
+.claim-link { margin-top: 12px; }
+.visit-box { margin-top: 8px; padding: 9px 11px; background: #f6f2ec; border-radius: 10px; }
+.visit-box p { margin: 0 0 4px; }
+.visit-pics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.visit-pics img { width: 84px; height: 84px; object-fit: cover; border-radius: 9px; border: 1px solid var(--line); }

@@ -91,6 +91,63 @@ window.LHCats = (function () {
     if (!licSeen.has(s.id)) return `<div class="lic-box">${no}<button type="button" class="btn ghost sm" data-cat="lic-see" data-shop="${s.id}" data-where="${where}">📄 লাইসেন্সের ছবি দেখুন</button></div>`;
     return `<div class="lic-box">${no}<img class="lic-pic" src="${s.licence.pic}" alt="ট্রেড লাইসেন্সের ছবি"></div>`;
   }
+  // a visit for a category the licence does not show: who goes and when, then what they found
+  const dayText = (day) => window.LHTime.show(window.LHTime.at(day, '12:00'), { day: 'numeric', month: 'short' }, window.LHI18n.lang);
+  function visitHtml(a, s) {
+    const v = a.visit;
+    if (!v) return a.onLicence || !Store.can('cats', s) ? '' : `<button type="button" class="btn ghost sm" data-cat="visit-plan" data-id="${a.id}">🏠 দোকান পরিদর্শন ঠিক করুন</button>`;
+    return `<div class="visit-box"><p><b>🏠 <span>পরিদর্শন</span></b>: ${U.ud(v.whoName)} · ${dayText(v.date)} · <span class="tag ${v.status === 'done' ? 'ok' : ''}">${v.status === 'done' ? 'হয়েছে' : 'বাকি'}</span></p>
+      ${v.status === 'done' ? `<p class="note">${U.ud(v.note)}</p>${(v.pics || []).length ? `<div class="visit-pics">${v.pics.map((x) => `<img src="${x}" alt="পরিদর্শনের ছবি">`).join('')}</div>` : ''}<p class="meta">${U.ud(v.doneBy)} · ${U.fmtTime(v.doneAt)}</p>`
+    : `<a class="btn ghost sm" href="#/admin/visit/${a.id}">ফলাফল লিখুন</a>`}</div>`;
+  }
+  function visitSheet(id) {
+    const a = Store.data.catAsks.find((x) => x.id === id);
+    const s = Store.shopById(a.shopId);
+    const div = window.LHArea.divOf(s.zila);
+    // those who may visit: the division's own staff first, then verification and the super admin
+    const can = (m) => m.active && (m.role === 'super' || m.role === 'verify' || (m.role === 'division' && m.division === div));
+    const list = Store.data.team.filter(can).sort((x, y) => Number(y.role === 'division') - Number(x.role === 'division'));
+    U.openSheet(`<h2 id="sheet-h">দোকান পরিদর্শন ঠিক করুন</h2><p class="meta">${U.ud(s.name)} · ${subLabel(a.sub)}</p>
+      <form id="visit-form" data-id="${id}" novalidate>
+        <label class="field"><span>কে যাবেন</span><select id="vf-who">${list.map((m) => `<option value="${m.id}">${U.ud(m.name)} · ${Store.ROLES[m.role]}${m.division ? ' · ' + U.geo(m.division) : ''}</option>`).join('')}</select></label>
+        <label class="field"><span>কবে</span><input id="vf-date" type="date" min="${Store.today()}" value="${Store.today()}"></label>
+        <small class="err" id="vf-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">ঠিক করুন</button>
+      </form>
+      <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
+  }
+  let visitPics = [];
+  let visitFor = '';
+  // the page the visitor opens from the work list: where to go, what to look for, and the result with pictures
+  function visitPage(id) {
+    const a = Store.data.catAsks.find((x) => x.id === id);
+    if (!a) return null;
+    const s = Store.shopById(a.shopId);
+    const me = Store.teamMe();
+    const mine = a.visit && a.visit.who === me.id;
+    if (!(mine && Store.can('visit', s)) && !Store.can('cats', s)) return window.LHTeam.noPerm();
+    if (visitFor !== id) { visitFor = id; visitPics = []; }
+    const v = a.visit;
+    return `<a class="back" href="#/admin">‹ কাজের তালিকা</a><h1 class="page-h">🏠 দোকান পরিদর্শন</h1>
+      <section class="panel">
+        <h2 class="tight">${U.ud(s.name)}</h2>
+        <p class="meta">📍 ${U.ud(s.address || s.market)} · ${U.geo(s.area)}, ${U.geo(s.zila)}</p>
+        <p class="meta">📞 <a href="tel:${U.esc(s.phone)}" translate="no">${U.bn(U.esc(s.phone))}</a> · <a href="${window.LHMap.directions(s.lat, s.lng)}" target="_blank" rel="noopener">🧭 পথ দেখুন</a></p>
+        <p><span>যা চাইছেন</span>: <b>${subLabel(a.sub)}</b></p>
+        ${a.note ? `<p class="note">${U.ud(a.note)}</p>` : ''}
+        <p class="meta">দেখুন: দোকানে এই বিভাগের জিনিস বা সেবা সত্যিই আছে কি না, আর লাইসেন্সে না থাকার কারণ।</p>
+        ${s.licence ? licBox(s, 'page') : ''}
+      </section>
+      ${!v ? '<p class="note gap-t">এখনো পরিদর্শন ঠিক হয়নি।</p>' : v.status === 'done' ? `<section class="panel gap-t">${visitHtml(a, s)}</section>` : `<form id="visit-done" class="panel gap-t" data-id="${id}" novalidate>
+        <p class="meta">🏠 ${U.ud(v.whoName)} · ${dayText(v.date)}</p>
+        <label class="field"><span>কী দেখলেন</span><textarea id="vd-note" rows="3" maxlength="300"></textarea></label>
+        <div class="field"><span class="flabel">ছবি (৩টি পর্যন্ত)</span>
+          <label class="btn ghost sm"><input type="file" accept="image/*" capture="environment" data-cat-pic="visit" hidden>📷 ছবি যোগ করুন</label>
+          <div class="visit-pics" id="vd-pics">${visitPics.map((x) => `<img src="${x}" alt="পরিদর্শনের ছবি">`).join('')}</div></div>
+        <small class="err" id="vd-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">ফলাফল জমা দিন</button>
+      </form>`}`;
+  }
   function askRow(a) {
     const s = Store.shopById(a.shopId);
     const late = new Date(a.due) < new Date();
@@ -103,6 +160,7 @@ window.LHCats = (function () {
       ${a.note ? `<p class="note">${U.ud(a.note)}</p>` : ''}
       <p class="meta">${waited} · <span>শেষ সময়</span> ${U.fmtTime(a.due)}${late ? ' · <b class="danger-txt">সময় পেরিয়ে গেছে</b>' : ''}</p>
       ${s.licence ? licBox(s, 'page') : '<p class="note">ট্রেড লাইসেন্স নেই</p>'}
+      ${visitHtml(a, s)}
       ${Store.can('cats', s) ? `<div class="o-acts"><button type="button" class="btn sm" data-cat="team-ok" data-id="${a.id}">✓ অনুমোদন</button><button type="button" class="btn ghost sm" data-cat="team-no" data-id="${a.id}">বাতিল</button></div>` : ''}
     </article>`;
   }
@@ -187,6 +245,14 @@ window.LHCats = (function () {
     const prefix = input.dataset.catPic;
     input.value = '';
     if (!file) return;
+    if (prefix === 'visit') {
+      try {
+        const shot = (await window.LHImage.readWhole(file)).image;
+        if (visitPics.length < 3) visitPics.push(shot);
+        $('vd-pics').innerHTML = visitPics.map((x) => `<img src="${x}" alt="পরিদর্শনের ছবি">`).join('');
+      } catch (ex) { $('vd-err').textContent = ex.message; }
+      return;
+    }
     try {
       const pic = (await window.LHImage.readWhole(file)).image;
       if (prefix === 'su') su.pic = pic; else licPic = pic;
@@ -216,6 +282,7 @@ window.LHCats = (function () {
         case 'team-no': refuseSheet(d.id); break;
         case 'team-cats': teamCatsSheet(Store.shopById(d.shop)); break;
         case 'team-drop': dropSheet(Store.shopById(d.shop), d.sub); break;
+        case 'visit-plan': visitSheet(d.id); break;
         case 'lic-see': {
           const s = Store.shopById(d.shop);
           Store.teamSeeDocs('licence', Store.placeOfShop(s));
@@ -267,6 +334,16 @@ window.LHCats = (function () {
       try { Store.catDecide(f.dataset.id, false, $('cn-why').value); U.closeSheet(); U.toast('অনুরোধ বাতিল করা হয়েছে'); U.route(true); } catch (ex) { show('cn-err', ex); }
       return;
     }
+    if (f.id === 'visit-form') {
+      e.preventDefault();
+      try { Store.visitPlan(f.dataset.id, $('vf-who').value, $('vf-date').value); U.closeSheet(); U.toast('পরিদর্শন ঠিক হয়েছে'); U.route(true); } catch (ex) { show('vf-err', ex); }
+      return;
+    }
+    if (f.id === 'visit-done') {
+      e.preventDefault();
+      try { Store.visitDone(f.dataset.id, $('vd-note').value, visitPics); visitPics = []; U.toast('ফলাফল জমা হয়েছে'); location.hash = '#/admin'; } catch (ex) { show('vd-err', ex); }
+      return;
+    }
     if (f.id === 'cat-drop') {
       e.preventDefault();
       try { Store.catDrop(f.dataset.shop, f.dataset.sub, $('cd-why').value, true); U.toast('ক্যাটাগরি বাদ দেওয়া হয়েছে'); teamCatsSheet(Store.shopById(f.dataset.shop)); U.route(true); } catch (ex) { show('cd-err', ex); }
@@ -285,5 +362,5 @@ window.LHCats = (function () {
     document.addEventListener('submit', onSubmit);
     window.addEventListener('hashchange', () => licSeen.clear());
   }
-  return { init, ownerSection, adminAsks, adminLine, openAll, signupFields, signupCheck, signupDone, subLabel };
+  return { init, ownerSection, adminAsks, adminLine, openAll, signupFields, signupCheck, signupDone, subLabel, visitPage };
 })();

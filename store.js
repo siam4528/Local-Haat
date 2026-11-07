@@ -417,9 +417,11 @@ window.LHStore = (function () {
   // open round the clock every day, as a pharmacy can mark itself
   const allDay = (s) => !!s.week && s.week.length === 7 && s.week.every((w) => w && !w.off && w.o === '00:00' && w.e === '23:59');
   // a shop closed only by the clock still takes orders for a time it is open; one the agent closed for now does not
-  const canBook = (s) => !!s.open && !s.suspended && !s.hidden && (!s.week || s.week.some((w) => w && !w.off));
+  // a listing the team added takes no orders or bookings until its owner claims it
+  const canBook = (s) => !!s.open && !s.suspended && !s.hidden && !s.listing && (!s.week || s.week.some((w) => w && !w.off));
   // the LocalHaat team can suspend a shop; an unverified owner's shop is hidden until the owner verifies
-  const shopLive = (s) => !s.hidden && !s.suspended;
+  // a shop the team added shows only once verification has approved it
+  const shopLive = (s) => !s.hidden && !s.suspended && !(s.added && s.added.status !== 'ok');
   const bnNum = (n) => String(n).replace(/\d/g, (c) => '০১২৩৪৫৬৭৮৯'[c]);
   const todayStr = () => DT.ymd();
   const FULL = 'ব্রাউজারের জায়গা শেষ। কিছু ছবি মুছে আবার চেষ্টা করুন।';
@@ -577,6 +579,7 @@ window.LHStore = (function () {
     const built = entries.map(([shopId, g]) => {
       const shop = shopById(shopId) || fail('দোকান পাওয়া যায়নি');
       const d = details[shopId] || fail('ঠিকানা দিন');
+      if (shop.listing) fail('এই দোকান এখনো অনলাইনে অর্ডার নেয় না, ফোন করুন');
       if (!canBook(shop)) fail('দোকানটি সাময়িকভাবে বন্ধ আছে');
       // an order for later: picked up, delivered or served at a time the shop is open
       if (d.when) {
@@ -639,6 +642,7 @@ window.LHStore = (function () {
     const shop = shopById(p.shopId) || fail('দোকান পাওয়া যায়নি');
     const it = shop.items.find((x) => x.id === p.itemId);
     if (!it || !it.book || !it.available || it.book === 'bus') fail('এই বুকিং এখন নেওয়া হচ্ছে না');
+    if (shop.listing) fail('এই সেবা এখনো অনলাইনে বুকিং নেয় না, ফোন করুন');
     if (!shop.open || shop.suspended) fail('দোকানটি সাময়িকভাবে বন্ধ আছে');
     const at = DT.at(p.date, p.time);
     if (Number.isNaN(at.getTime()) || at < new Date()) fail('এই সময় পার হয়ে গেছে, পরের কোনো সময় দিন');
@@ -2216,10 +2220,10 @@ window.LHStore = (function () {
   const ROLES = { super: 'সুপার অ্যাডমিন', support: 'সাপোর্ট', verify: 'ভেরিফিকেশন', finance: 'ফাইন্যান্স', division: 'বিভাগীয় স্টাফ' };
   const PERMS = {
     super: ['*'],
-    support: ['dash', 'riders', 'rider.suspend', 'assign', 'support', 'orders'],
-    verify: ['dash', 'shops', 'shop.verify', 'shop.suspend', 'shop.area', 'cats', 'riders', 'rider.papers', 'rider.suspend', 'rider.area', 'docs'],
+    support: ['dash', 'riders', 'rider.suspend', 'assign', 'support', 'orders', 'shop.add'],
+    verify: ['dash', 'shops', 'shop.verify', 'shop.suspend', 'shop.area', 'cats', 'riders', 'rider.papers', 'rider.suspend', 'rider.area', 'docs', 'shop.add', 'visit'],
     finance: ['dash', 'orders', 'refunds', 'report'],
-    division: ['dash', 'shops', 'riders', 'assign', 'support', 'orders', 'report']
+    division: ['dash', 'shops', 'riders', 'assign', 'support', 'orders', 'report', 'shop.add', 'visit']
   };
   const TEAM_CODE_MIN = 5;
   const TEAM_CODE_TRIES = 3;
@@ -2313,6 +2317,126 @@ window.LHStore = (function () {
   }
   const supersLeft = (skip) => data.team.filter((x) => x.role === 'super' && x.active && x.id !== skip).length;
   // the super admin adds a person with a first password, which they give the person
+  /* ---------- shops the team adds, and shop visits ---------- */
+  // A shop or service the team adds for an owner not on LocalHaat yet: the owner's name and mobile, the category, the address
+  // and pin, the hours and what it sells. Verification approves it (their own and the super admin's need no second look);
+  // then users see it as a listing, without online orders, until the owner claims it with that mobile number.
+  const kindOfSub = (sub) => (window.LH.subKind || {})[sub] || (catOfSub(sub) || {}).kind || 'shop';
+  function checkWeek(week) {
+    if (!Array.isArray(week) || week.length !== 7) fail('খোলার সময় দিন');
+    week.forEach((w) => { if (!w || (!w.off && !(/^\d{2}:\d{2}$/.test(w.o) && /^\d{2}:\d{2}$/.test(w.e) && w.o !== w.e))) fail('খোলার সময় ঠিক করে দিন'); });
+    if (week.every((w) => w.off)) fail('অন্তত একটি দিন খোলা রাখুন');
+    return week.map((w) => (w.off ? { off: true } : { o: w.o, e: w.e }));
+  }
+  function teamAddShop(v) {
+    // the fields in the order of the form; the district also says where a division's staff may add
+    const me = need('shop.add');
+    const zila = v.zila || '';
+    const ownerName = words(v.ownerName).slice(0, 60);
+    if (ownerName.length < 3) fail('মালিকের পুরো নাম লিখুন');
+    const phone = String(v.ownerPhone || '').replace(/[\s-]/g, '');
+    if (!/^01[3-9]\d{8}$/.test(phone)) fail('মালিকের ১১ সংখ্যার মোবাইল নম্বর দিন');
+    if (data.accounts.some((a) => a.role === 'owner' && a.contact === phone) || data.shops.some((x) => x.listing && x.ownerPhone === phone && !(x.added && x.added.status === 'no'))) fail('এই নম্বরে আগেই একটি দোকান আছে');
+    const name = words(v.name).slice(0, 80);
+    if (name.length < 2) fail('দোকান বা সেবার নাম দিন');
+    const cat = catOfSub(v.sub) || fail('ক্যাটাগরি ও সাব-ক্যাটাগরি বেছে নিন');
+    if (ownPanel(v.sub)) fail('ক্লিনিক, বাস বা লঞ্চ কাউন্টার মালিক নিজে খুলবেন');
+    if (!Object.hasOwn(window.LH_GEO, zila)) fail('জেলা বেছে নিন');
+    need('shop.add', { zila });
+    const area = words(v.area).slice(0, 60);
+    if (area.length < 2) fail('উপজেলা / থানা দিন');
+    const address = words(v.address).slice(0, 150);
+    if (address.length < 5) fail('পুরো ঠিকানা লিখুন (কমপক্ষে ৫ অক্ষর)');
+    if (!Number.isFinite(v.lat) || !Number.isFinite(v.lng)) fail('ম্যাপে দোকানের জায়গায় পিন দিন');
+    const week = checkWeek(v.week);
+    const kind = kindOfSub(v.sub);
+    const rows = (v.items || []).map((it) => ({ name: words(it.name).slice(0, 80), unit: words(it.unit).slice(0, 30), price: Number(it.price) })).filter((it) => it.name);
+    if (!rows.length) fail('অন্তত একটি পণ্য বা সেবা দিন');
+    rows.forEach((it) => { if (it.name.length < 2) fail('পণ্য বা সেবার নাম দিন'); if (!Number.isInteger(it.price) || it.price < 0 || it.price > 1000000) fail('দাম সংখ্যায় দিন (০ মানে দাম পরে)'); });
+    const id = 'ts' + Date.now().toString(36);
+    const now = new Date().toISOString();
+    const auto = me.role === 'super' || me.role === 'verify';
+    const shop = {
+      id, name, cat: cat.id, sub: v.sub, zila, area, market: words(v.market).slice(0, 60) || area, kind, verified: false, about: '', icon: cat.icon,
+      lat: v.lat, lng: v.lng, address, phone, open: true, hidden: false, week, extra: [], waiting: [], createdAt: now,
+      items: rows.map((it, i) => Object.assign({ id: id + '-' + i, name: it.name, unit: it.unit, price: it.price, icon: cat.icon, available: true, sub: v.sub }, kind === 'service' ? { book: 'quote' } : {})),
+      listing: true, ownerName, ownerPhone: phone,
+      added: { by: me.id, byName: me.name, role: me.role, at: now, status: auto ? 'ok' : 'pending' }
+    };
+    data.shops.push(shop);
+    audit('shop-add', placeOfShop(shop), '', { after: v.sub });
+    if (auto) { Object.assign(shop.added, { checkedBy: me.name, checkedAt: now }); audit('shop-approve', placeOfShop(shop), 'যাচাইকারী নিজে যোগ করেছেন'); }
+    save();
+    return shop;
+  }
+  // verification looks at a shop another member added: approved, it shows; refused, it stays hidden with the reason
+  function teamCheckShop(id, ok, reason) {
+    const s = shopById(id) || fail('দোকান পাওয়া যায়নি');
+    const me = need('shop.verify', s);
+    if (!s.added || s.added.status !== 'pending') fail('এই দোকান আগেই দেখা হয়েছে');
+    const why = ok ? '' : reasonOf(reason, 'কেন হচ্ছে না, লিখুন');
+    Object.assign(s.added, { status: ok ? 'ok' : 'no', checkedBy: me.name, checkedAt: new Date().toISOString(), reason: why });
+    audit(ok ? 'shop-approve' : 'shop-refuse', placeOfShop(s), why);
+    save();
+  }
+  // until the owner claims it, the team can still change what kind of business it is
+  function teamSetMainCat(id, sub) {
+    const s = shopById(id) || fail('দোকান পাওয়া যায়নি');
+    need('shop.add', s);
+    if (!s.listing) fail('মালিক দোকান নিয়েছেন। এখন ক্যাটাগরি বদলাতে ভেরিফিকেশনের অনুমোদন লাগবে।');
+    const cat = catOfSub(sub) || fail('ক্যাটাগরি ও সাব-ক্যাটাগরি বেছে নিন');
+    if (ownPanel(sub)) fail('ক্লিনিক, বাস বা লঞ্চ কাউন্টার মালিক নিজে খুলবেন');
+    if (sub === s.sub) return;
+    const before = s.sub;
+    const kind = kindOfSub(sub);
+    Object.assign(s, { cat: cat.id, sub, kind, icon: cat.icon });
+    s.items.forEach((it) => { it.sub = sub; if (kind === 'service' && !it.book) it.book = 'quote'; if (kind === 'shop') delete it.book; });
+    audit('shop-cat', placeOfShop(s), '', { before, after: sub });
+    save();
+  }
+  // the owner takes the shop: the mobile number the team wrote down, a code to it, a password
+  const listingFor = (phone) => data.shops.find((x) => x.listing && x.ownerPhone === phone && shopLive(x)) || null;
+  function claimShop(phone, name, pw) {
+    const s = listingFor(phone) || fail('এই নম্বরে কোনো দোকান পাওয়া যায়নি');
+    const full = words(name).slice(0, 60);
+    if (full.length < 3) fail('পুরো নাম লিখুন');
+    if (String(pw || '').length < 6) fail('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের দিন');
+    const no = data.nextNo++;
+    const [first, ...rest] = full.split(' ');
+    const acc = { id: 'a' + no, role: 'owner', first, last: rest.join(' '), name: full, handle: 'shop' + no, memberNo: String(no), contact: phone, pw: hash(pw), verified: true, shopId: s.id };
+    data.accounts.push(acc);
+    s.listing = false;
+    s.claimedAt = new Date().toISOString();
+    audit('shop-claim', Object.assign(placeOfShop(s), { by: acc.id, byName: full }));
+    data.sessions.owner = acc.id;
+    save();
+    return acc;
+  }
+  // A visit for a category the trade licence does not show: who goes and when, then what they saw, with pictures.
+  // Verification or the super admin plans it; the person who goes, or they, write what was found.
+  function visitPlan(askId, who, date) {
+    const a = data.catAsks.find((x) => x.id === askId) || fail('অনুরোধ পাওয়া যায়নি');
+    const s = shopById(a.shopId);
+    need('cats', s);
+    if (a.status !== 'open') fail('এই অনুরোধ আগেই ঠিক হয়ে গেছে');
+    const m = data.team.find((x) => x.id === who && x.active) || fail('কে যাবেন, বেছে নিন');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || date < todayStr()) fail('আজ বা পরের কোনো দিন দিন');
+    a.visit = { who: m.id, whoName: m.name, date, status: 'planned', by: teamMe().id, at: new Date().toISOString() };
+    audit('visit-plan', placeOfShop(s), '', { after: m.name + ' · ' + date });
+    save();
+  }
+  function visitDone(askId, note, pics) {
+    const a = data.catAsks.find((x) => x.id === askId) || fail('অনুরোধ পাওয়া যায়নি');
+    const s = shopById(a.shopId);
+    const me = teamMe() || fail('এই কাজের অনুমতি নেই');
+    if (!a.visit) fail('আগে পরিদর্শন ঠিক করুন');
+    if (a.visit.who === me.id) need('visit', s); else need('cats', s);
+    const why = reasonOf(note, 'পরিদর্শনে কী দেখলেন, লিখুন (কমপক্ষে ৫ অক্ষর)');
+    const shots = (Array.isArray(pics) ? pics : []).filter((x) => typeof x === 'string' && x.startsWith('data:image/')).slice(0, 3);
+    Object.assign(a.visit, { status: 'done', note: why, pics: shots, doneBy: me.name, doneAt: new Date().toISOString() });
+    audit('visit-done', placeOfShop(s), why);
+    save();
+  }
   function teamAdd(v) {
     const me = need('team');
     const name = words(v.name).slice(0, 60);
@@ -2435,6 +2559,7 @@ window.LHStore = (function () {
     placeOrders, accept, pack, shopComplete, riderPickup, riderDecline, riderDeliver, cancel,
     saveItem, deleteItem, setShopImage,
     canReorder, reorderPlan,
+    teamAddShop, teamCheckShop, teamSetMainCat, listingFor, claimShop, visitPlan, visitDone, kindOfSub,
     session(role) { return data.accounts.find((a) => a.id === data.sessions[role]) || null; },
     setSession(role, acc) { if (acc) data.sessions[role] = acc.id; else delete data.sessions[role]; save(); }
   };

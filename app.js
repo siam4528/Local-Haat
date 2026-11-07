@@ -268,7 +268,7 @@
         <p class="meta">${esc(c.short)} · ${ud(s.market)}</p>
         ${openLine(s)}
         ${hits.length ? `<p class="hit">পাওয়া গেছে: ${hits.slice(0, 2).map((i) => ud(i.name) + (i.price ? ' ' + tk(i.price) : '')).join(', ')}</p>` : ''}
-        <p class="facts"><span>${Store.isEmergency(s) ? '🚑 ২৪ ঘণ্টা জরুরি সেবা' : s.kind === 'service' ? '🗓️ সেবা বুকিং' : '🛵 হোম ডেলিভারি'}</span>${Store.allDay(s) && !Store.isEmergency(s) ? '<span class="tag24">🕐 ২৪ ঘণ্টা খোলা</span>' : ''}<span class="new">${Rate.badge('shop', s.id, 'নতুন')}</span></p>
+        <p class="facts"><span>${s.listing ? '📋 অনলাইনে অর্ডার নেয় না' : Store.isEmergency(s) ? '🚑 ২৪ ঘণ্টা জরুরি সেবা' : s.kind === 'service' ? '🗓️ সেবা বুকিং' : '🛵 হোম ডেলিভারি'}</span>${Store.allDay(s) && !Store.isEmergency(s) ? '<span class="tag24">🕐 ২৪ ঘণ্টা খোলা</span>' : ''}<span class="new">${Rate.badge('shop', s.id, 'নতুন')}</span></p>
       </div>
     </a></div>`;
   }
@@ -509,11 +509,11 @@
           <p class="meta">${esc(c.short)} · ${kmText(r.km)} দূরে${s.verified ? ' · ✓ যাচাইকৃত' : ''}</p>
           ${r.top ? `<p class="mtop">🏆 এলাকায় বিক্রিতে #${bn(r.top.rank)} · গত ৩০ দিনে ${bn(r.top.orders)}টি অর্ডার</p>` : ''}
           ${openLine(s)}
-          <p class="meta">${s.kind === 'service' ? 'সেবা' : 'হোম ডেলিভারি'}${Store.allDay(s) ? ' · <span>🕐 ২৪ ঘণ্টা খোলা</span>' : ''}${Store.ratingSummary('shop', s.id).n ? ' · ' + Rate.badge('shop', s.id, '') : ''}</p>
+          <p class="meta">${s.listing ? '📋 অনলাইনে অর্ডার নেয় না' : s.kind === 'service' ? 'সেবা' : 'হোম ডেলিভারি'}${Store.allDay(s) ? ' · <span>🕐 ২৪ ঘণ্টা খোলা</span>' : ''}${Store.ratingSummary('shop', s.id).n ? ' · ' + Rate.badge('shop', s.id, '') : ''}</p>
         </div>
       </div>
       ${hits.slice(0, 3).map((it) => `<div class="mhit"><span>${it.icon} ${ud(it.name)} <small>${ud(it.unit)}</small> <b>${Book.priceHtml(it)}</b></span>
-        ${it.book ? Book.bookBtn(s, it) : Store.canBook(s) ? `<button type="button" class="add sm" data-action="add" data-shop="${s.id}" data-item="${it.id}" aria-label="${ud(it.name)} কার্টে যোগ করুন">${inCart[it.id] ? bn(inCart[it.id]) : '+'}</button>` : ''}</div>`).join('')}
+        ${it.book ? (s.listing ? '' : Book.bookBtn(s, it)) : Store.canBook(s) ? `<button type="button" class="add sm" data-action="add" data-shop="${s.id}" data-item="${it.id}" aria-label="${ud(it.name)} কার্টে যোগ করুন">${inCart[it.id] ? bn(inCart[it.id]) : '+'}</button>` : ''}</div>`).join('')}
       <div class="mcard-acts">
         <a class="btn sm" href="#/shop/${s.id}">${s.kind === 'service' ? 'সেবা দেখুন' : 'পণ্য দেখুন'}</a>
         <a class="btn ghost sm" href="${Map_.directions(s.lat, s.lng)}" target="_blank" rel="noopener">🧭 পথ দেখুন</a>
@@ -685,7 +685,7 @@
   }
   function buyHtml(s, it, inCart) {
     if (!it.available) return '';
-    if (it.book) return s.open ? Book.bookBtn(s, it) : '';
+    if (it.book) return s.open && !s.listing ? Book.bookBtn(s, it) : '';
     // a shop closed by the clock still takes orders for later: picked up or delivered when it is open
     if (!Store.canBook(s)) return '';
     return inCart[it.id] ? stepper(s.id, it.id, inCart[it.id]) : `<button type="button" class="add" data-action="add" data-shop="${s.id}" data-item="${it.id}" aria-label="${ud(it.name)} কার্টে যোগ করুন">+</button>`;
@@ -772,15 +772,16 @@
           <div class="tags">
             ${s.verified ? '<span class="tag ok">✓ ট্রেড লাইসেন্স যাচাইকৃত</span>' : '<span class="tag">যাচাই বাকি</span>'}
             <span class="tag ${Book.hoursStatus(s).open ? 'ok-soft' : 'bad'}">${Book.hoursStatus(s).text}</span>
-            ${s.kind === 'service' ? '' : '<span class="tag">🛵 হোম ডেলিভারি</span><span class="tag">🏪 দোকান থেকেও নেওয়া যায়</span>'}
+            ${s.listing ? '<span class="tag bad">📋 অনলাইনে অর্ডার নেয় না</span>' : s.kind === 'service' ? '' : '<span class="tag">🛵 হোম ডেলিভারি</span><span class="tag">🏪 দোকান থেকেও নেওয়া যায়</span>'}
             ${Store.isEmergency(s) ? '<span class="tag sos-tag">🚑 ২৪ ঘণ্টা জরুরি সেবা</span>' : ''}
             ${top ? `<span class="tag best-tag">🏆 এলাকায় বিক্রিতে #${bn(top.rank)}</span>` : ''}
             <span class="tag">${Rate.badge('shop', s.id, 'নতুন, এখনো রেটিং নেই')}</span>
           </div>
+          ${s.listing ? '<p class="note">📋 এই দোকানের তথ্য লোকালহাট টিম দিয়েছে। মালিক এখনো অ্যাপে আসেননি, তাই অনলাইনে অর্ডার বা বুকিং হবে না। ফোন করুন বা দোকানে যান।</p>' : ''}
           ${Store.isEmergency(s) ? '<p class="sos-note">জরুরি হলে বুকিং না করে এখনই কল করুন।</p>' : ''}
           <div class="contact three">
             <a class="btn ${Store.isEmergency(s) ? 'sos' : ''}" href="tel:${esc(s.phone)}">${Store.isEmergency(s) ? '📞 জরুরি কল' : '📞 কল করুন'}</a>
-            <a class="btn ghost" href="#/chat/${s.id}">💬 চ্যাট করুন</a>
+            ${s.listing ? '' : `<a class="btn ghost" href="#/chat/${s.id}">💬 চ্যাট করুন</a>`}
             <a class="btn ghost" href="${Map_.directions(s.lat, s.lng)}" target="_blank" rel="noopener">🧭 পথ দেখুন</a>
           </div>
           ${later ? '<p class="note gap-t">🕒 দোকান এখন বন্ধ। এখনই অর্ডার দিয়ে রাখুন: খোলার সময়ে দোকান থেকে নিন, অথবা ডেলিভারি নিন।</p>' : ''}
@@ -1307,6 +1308,7 @@
     window.LHAuth.mount();
     window.LHRider.mount();
     window.LHOwner.mount();
+    window.LHAdmin.mount();
     Book.mount();
     window.LHLaunch.mount();
     Care.mount();

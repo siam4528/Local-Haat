@@ -212,7 +212,23 @@ window.LHAuth = (function () {
       <button class="btn block" type="submit">লগইন</button>
       <div class="demo-box"><span>প্রিভিউ ডেমো: ${H.bn(a.contact)} / ${DEMO_PW}. আসল পাসওয়ার্ড দেবেন না।${role === 'owner' ? ` সেবা: ${H.bn('01711000012')}, ক্লিনিক: ${H.bn('01711000013')}, বাস কাউন্টার: ${H.bn('01711000014')}, ট্রাক: ${H.bn('01711000015')}, গ্যারেজ: ${H.bn('01711000018')}` : ''}</span>
         <button type="button" class="inline" data-auth="demo-fill" data-role="${role}">পূরণ করুন</button></div>
-    </form>`);
+    </form>
+    ${role === 'owner' ? '<p class="linkrow center claim-link"><a href="#/auth/owner/claim">লোকালহাট টিম আপনার দোকান যোগ করেছে? এখানে নিজের করে নিন ›</a></p>' : ''}`);
+  }
+  // The team added this owner's shop. With the mobile number the team wrote down and a code to it, the owner sets a
+  // password and the shop becomes theirs: from then on it takes orders.
+  function claim() {
+    const phone = bdPhone(d.contact || '');
+    const shop = d.found && phone ? Store.listingFor(phone) : null;
+    return shell('owner', 'claim', `<h2 class="tight">দোকান নিজের করে নিন</h2>
+      <p class="meta gap">লোকালহাট টিম আপনার দোকান যোগ করে থাকলে, টিমকে যে মোবাইল নম্বর দিয়েছিলেন সেটি দিন। কোড দিয়ে যাচাই করে পাসওয়ার্ড বানালেই দোকান আপনার।</p>
+      <form data-form="claim" novalidate>
+        ${input('contact', 'মোবাইল নম্বর', { type: 'tel', mode: 'numeric', ph: '01XXXXXXXXX', ac: 'tel', max: 14 })}
+        ${shop ? `<div class="claim-shop"><b>${H.ud(shop.name)}</b><small>${H.ud(shop.address)} · ${H.geo(shop.area)}</small></div>${otpBox(phone)}` : '<button type="button" class="btn ghost block" data-auth="claim-find">দোকান খুঁজুন</button>'}
+        ${shop && otp && otp.ok ? `${input('first', 'আপনার পুরো নাম', { ac: 'name', max: 60 })}${password('pw', 'পাসওয়ার্ড', 'new-password', 'কমপক্ষে ৬ অক্ষর')}${password('pw2', 'পাসওয়ার্ড আবার লিখুন', 'new-password')}
+          <button type="submit" class="btn block">দোকান নিজের করে নিন</button>` : ''}
+      </form>
+      <p class="linkrow center"><a href="#/auth/owner/login">‹ লগইনে ফিরে যান</a></p>`);
   }
 
   // upazila names are suggested from the list; a shop and a delivery man must match for orders to reach him
@@ -408,6 +424,7 @@ window.LHAuth = (function () {
     if (!ROLES[role]) return null;
     if (mode === 'login') return login(role);
     if (mode === 'forgot') return forgot(role);
+    if (mode === 'claim') return role === 'owner' ? claim() : null;
     if (mode === 'signup') return role === 'owner' ? signupOwner() : role === 'delivery' ? signupDelivery() : signupCustomer();
     return null;
   }
@@ -610,6 +627,17 @@ window.LHAuth = (function () {
         break;
       case 'social': socialSheet(a.provider, a.role); break;
       case 'otp-send': sendOtp(); break;
+      case 'claim-find': {
+        const phone = bdPhone(d.contact || '');
+        if (!phone) { showErrors({ contact: 'সঠিক বাংলাদেশি মোবাইল নম্বর দিন' }); break; }
+        const shop = Store.listingFor(phone);
+        if (!shop) { showErrors({ contact: 'এই নম্বরে কোনো দোকান পাওয়া যায়নি। টিমকে যে নম্বর দিয়েছিলেন সেটি দিন।' }); break; }
+        d.found = true;
+        d.first = shop.ownerName;
+        errs = {};
+        H.route(true);
+        break;
+      }
       case 'otp-verify': checkOtp(); break;
       case 'logout':
         Store.setSession(a.role, null);
@@ -683,6 +711,16 @@ window.LHAuth = (function () {
       if (Object.keys(out).length) return showErrors(out);
       if (wizard < 2) { wizard += 1; errs = {}; return H.route(); }
       createOwner();
+    } else if (form === 'claim') {
+      const phone = bdPhone(d.contact || '');
+      if (!otp || !otp.ok) return showErrors({ code: 'আগে কোড যাচাই করুন' });
+      if ((d.first || '').trim().length < 3) out.first = 'পুরো নাম লিখুন';
+      checkPw(out);
+      if (Object.keys(out).length) return showErrors(out);
+      try { me = Store.claimShop(phone, d.first, d.pw); } catch (ex) { return showErrors({ _: ex.message }); }
+      d = {}; errs = {}; otp = null;
+      H.toast('দোকান এখন আপনার। অর্ডার নিতে পারবেন।');
+      location.hash = '#/owner';
     } else if (form === 'forgot') {
       const role = e.target.dataset.role;
       checkPw(out);

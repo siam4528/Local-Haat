@@ -55,6 +55,75 @@ window.LHAdmin = (function () {
       <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
   }
 
+  /* ---------- a shop the team adds ---------- */
+  let nsPin = null;
+  let nsMap = null;
+  // every sub-category a shop can open in, under its category; the ones with their own panel are left out
+  const subOptions = (sel) => window.LH.cats.map((c) => {
+    const list = c.examples.filter((x) => !Store.ownPanel(x));
+    return list.length ? `<optgroup label="${U.esc(c.icon + ' ' + c.label)}">${list.map((x) => `<option value="${U.esc(x)}" ${sel === x ? 'selected' : ''}>${U.esc(x)}</option>`).join('')}</optgroup>` : '';
+  }).join('');
+  const itemRow = () => `<div class="ns-item"><input data-ns="name" maxlength="80" aria-label="পণ্য বা সেবার নাম" placeholder="নাম, যেমন: মিনিকেট চাল"><input data-ns="unit" maxlength="30" aria-label="একক" placeholder="একক, যেমন: ১ কেজি"><input data-ns="price" inputmode="numeric" maxlength="7" aria-label="দাম (৳)" placeholder="দাম ৳"></div>`;
+  const ADDED_WORD = { pending: '🆕 যাচাই বাকি', ok: '✓ অনুমোদিত', no: 'বাতিল হয়েছে' };
+  function newShopPage() {
+    const me = Store.teamMe();
+    const zilas = me.role === 'division' ? (window.LH_DIV[me.division] || []) : Object.keys(window.LH_GEO);
+    const mine = D().shops.filter((x) => x.added && x.added.by === me.id).slice(-8).reverse();
+    return `<a class="back" href="#/admin">‹ কাজের তালিকা</a><h1 class="page-h">নতুন দোকান বা সেবা</h1>
+      <p class="meta gap"><span>মালিক এখনো লোকালহাটে নেই এমন দোকান যোগ করুন।</span> ${me.role === 'super' || me.role === 'verify' ? '<span>আপনার যোগ করা দোকান সরাসরি দেখাবে।</span>' : '<span>ভেরিফিকেশন টিম অনুমোদন করলে ব্যবহারকারীরা দেখবেন।</span>'} <span>মালিক নিজের মোবাইল নম্বরে কোড দিয়ে দোকান নিজের করে না নেওয়া পর্যন্ত অনলাইনে অর্ডার নেবে না।</span></p>
+      <form id="new-shop" class="panel" novalidate>
+        <h2 class="tight">মালিক</h2>
+        <div class="row2"><label class="field"><span>মালিকের নাম</span><input id="ns-owner" type="text" maxlength="60" autocomplete="off"></label>
+          <label class="field"><span>মালিকের মোবাইল নম্বর</span><input id="ns-phone" type="tel" inputmode="numeric" maxlength="14" placeholder="01XXXXXXXXX"><small>এই নম্বরে কোড দিয়ে মালিক দোকান নেবেন।</small></label></div>
+        <h2 class="tight gap-t">দোকান বা সেবা</h2>
+        <label class="field"><span>নাম</span><input id="ns-name" type="text" maxlength="80" autocomplete="off"></label>
+        <label class="field"><span>ক্যাটাগরি ও সাব-ক্যাটাগরি</span><select id="ns-sub"><option value="">বেছে নিন</option>${subOptions('')}</select></label>
+        <div class="row2"><label class="field"><span>জেলা</span><select id="ns-zila"><option value="">বেছে নিন</option>${zilas.map((z) => `<option value="${U.esc(z)}">${U.geo(z)}</option>`).join('')}</select></label>
+          <label class="field"><span>উপজেলা / থানা</span><input id="ns-area" type="text" maxlength="60" list="ns-areas" autocomplete="off"><datalist id="ns-areas"></datalist></label></div>
+        <label class="field"><span>বাজার (ঐচ্ছিক)</span><input id="ns-market" type="text" maxlength="60" autocomplete="off"></label>
+        <label class="field"><span>পুরো ঠিকানা</span><input id="ns-address" type="text" maxlength="150" autocomplete="off" placeholder="বাড়ি, রোড, বাজার"></label>
+        <div class="field"><span class="flabel">ম্যাপে দোকানের জায়গা</span><div id="ns-map" class="mini-map" aria-label="ম্যাপে দোকানের জায়গা"></div><small id="ns-pin-note">ম্যাপে চাপ দিয়ে দোকানের জায়গায় পিন দিন।</small></div>
+        ${window.LHBook.weekEditor({ week: null })}
+        <h2 class="tight gap-t">পণ্য বা সেবা</h2>
+        <p class="meta">দাম ০ দিলে "দাম পরে" দেখাবে।</p>
+        <div id="ns-items">${itemRow()}${itemRow()}</div>
+        <button type="button" class="btn ghost sm gap-t" data-admin="ns-more">+ আরেকটি</button>
+        <small class="err" id="ns-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">দোকান যোগ করুন</button>
+      </form>
+      ${mine.length ? `<h2 class="gap-t">আপনার যোগ করা</h2><div class="stack">${mine.map((x) => `<article class="panel ad-row"><div class="o-head"><div><b>${U.ud(x.name)}</b><small>${U.esc(x.sub)} · ${U.geo(x.area)}, ${U.geo(x.zila)}</small></div><span class="tag ${x.added.status === 'ok' ? 'ok' : x.added.status === 'no' ? 'bad' : ''}">${ADDED_WORD[x.added.status]}</span></div>${x.added.reason ? `<p class="warn"><span>কারণ</span>: ${U.ud(x.added.reason)}</p>` : ''}${x.listing ? '' : '<p class="meta">✓ মালিক দোকান নিয়েছেন</p>'}</article>`).join('')}</div>` : ''}`;
+  }
+  // verification's list of shops other members added
+  function addedAsks() {
+    const list = D().shops.filter((x) => x.added && x.added.status === 'pending' && can('shop.verify', x) && inPick(x));
+    if (!list.length) return '';
+    return `<section class="gap-b" id="added-asks"><h2>🆕 টিমের যোগ করা দোকান, যাচাই বাকি <small>${U.bn(list.length)}</small></h2><div class="stack">${list.map((x) => `<article class="panel ad-row added-row" id="ad-a-${x.id}">
+      <div class="o-head"><div><b>${U.ud(x.name)}</b><small>${U.esc(x.sub)} · ${U.geo(x.area)}, ${U.geo(x.zila)}</small></div></div>
+      <p class="meta"><span>মালিক</span>: ${U.ud(x.ownerName)} · <span translate="no">${U.bn(x.ownerPhone)}</span></p>
+      <p class="meta">📍 ${U.ud(x.address)} · ${x.items.length ? `${U.bn(x.items.length)} <span>টি পণ্য বা সেবা</span>` : ''}</p>
+      <p class="meta"><span>যোগ করেছেন</span>: ${U.ud(x.added.byName)} · ${U.fmtTime(x.added.at)}</p>
+      <div class="o-acts"><button type="button" class="btn sm" data-admin="added-ok" data-id="${x.id}">✓ অনুমোদন</button><button type="button" class="btn ghost sm" data-admin="added-no" data-id="${x.id}">বাতিল</button><a class="btn ghost sm" href="#/shop/${x.id}" data-action="view-as">👁 দেখুন</a></div>
+    </article>`).join('')}</div></section>`;
+  }
+  function mainCatSheet(id) {
+    const x = Store.shopById(id);
+    U.openSheet(`<h2 id="sheet-h">মূল ক্যাটাগরি বদলান</h2><p class="meta">${U.ud(x.name)}</p>
+      <form id="main-cat" data-id="${id}" novalidate>
+        <label class="field"><span>ক্যাটাগরি ও সাব-ক্যাটাগরি</span><select id="mc-sub">${subOptions(x.sub)}</select></label>
+        <small class="err" id="mc-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">সংরক্ষণ করুন</button>
+      </form>
+      <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
+  }
+  // the map on the form: a pin where the shop is, the map moved to the district chosen
+  function mount() {
+    const el = $('ns-map');
+    if (!el || el.dataset.on) return;
+    el.dataset.on = '1';
+    nsPin = null;
+    nsMap = window.LHMap.picker(el, null, (lat, lng) => { nsPin = { lat, lng }; $('ns-pin-note').textContent = '✓ পিন দেওয়া হয়েছে'; }, { icon: '🏪' });
+  }
+
   /* ---------- shops and services ---------- */
   function shopRow(s) {
     const owner = D().accounts.find((a) => a.role === 'owner' && a.shopId === s.id);
@@ -64,6 +133,7 @@ window.LHAdmin = (function () {
       <div class="ad-head">${U.logoHtml(s, 'chat-logo')}<div class="ad-txt"><b>${U.ud(s.name)}</b><small>${U.esc(U.catById(s.cat).short)} · ${s.kind === 'service' ? 'সেবা' : 'দোকান'}</small></div></div>
       <div class="tags">
         <span class="tag ${s.verified ? 'ok' : ''}">${s.verified ? '✓ যাচাইকৃত' : 'যাচাই বাকি'}</span>
+        ${s.added ? `<span class="tag ${s.added.status === 'no' ? 'bad' : ''}">${ADDED_WORD[s.added.status]}</span>` : ''}${s.listing ? '<span class="tag">📋 মালিক এখনো নেননি</span>' : ''}
         ${s.suspended ? '<span class="tag bad">স্থগিত</span>' : ''}${s.hidden ? '<span class="tag">এজেন্ট ভেরিফাই করেননি</span>' : ''}
         <span class="tag">${window.LHRate.badge('shop', s.id, 'রেটিং নেই')}</span>
         <span class="tag">${U.bn(orders)}টি অর্ডার</span>
@@ -76,6 +146,7 @@ window.LHAdmin = (function () {
         ${!can('shop.suspend', s) ? '' : s.suspended ? `<button type="button" class="btn sm" data-admin="shop-resume" data-id="${s.id}">আবার চালু করুন</button>` : `<button type="button" class="btn danger sm" data-admin="shop-suspend" data-id="${s.id}">স্থগিত করুন</button>`}
         <a class="btn ghost sm" href="#/shop/${s.id}" data-action="view-as">👁 গ্রাহক যেভাবে দেখবেন</a>
         ${can('shop.area', s) ? `<button type="button" class="btn ghost sm" data-admin="area-edit" data-kind="shop" data-id="${s.id}">এলাকা বদলান</button>` : ''}
+        ${s.listing && can('shop.add', s) ? `<button type="button" class="btn ghost sm" data-admin="main-cat" data-id="${s.id}">মূল ক্যাটাগরি বদলান</button>` : ''}
         ${rated && can('ratings') ? `<button type="button" class="btn ghost sm" data-admin="ratings" data-about="shop" data-id="${s.id}">রেটিং (${U.bn(rated)})</button>` : ''}
       </div>
     </article>`;
@@ -85,6 +156,7 @@ window.LHAdmin = (function () {
     const all = everyone.filter(inPick);
     const groups = { all, pending: all.filter((s) => !s.verified), suspended: all.filter((s) => s.suspended) };
     return `<h1 class="page-h">এজেন্ট (দোকান ও সেবা)</h1>
+      ${addedAsks()}
       ${can('cats') ? window.LHCats.adminAsks() : ''}
       ${areaFilter(everyone)}
       <div class="chips" role="group" aria-label="ফিল্টার">${chip('shop-tab', 'all', shopTab === 'all', `সব (${U.bn(all.length)})`)}${chip('shop-tab', 'pending', shopTab === 'pending', `যাচাই বাকি (${U.bn(groups.pending.length)})`)}${chip('shop-tab', 'suspended', shopTab === 'suspended', `স্থগিত (${U.bn(groups.suspended.length)})`)}</div>
@@ -417,9 +489,9 @@ window.LHAdmin = (function () {
   const reportOf = (id) => { if (!id) return window.LHReport.allPage(); const s = Store.shopById(id); return !s ? null : can('report', s) ? window.LHReport.shopPage(id, true) : T().noPerm(); };
   const PAGES = {
     '': ['dash', () => T().dashPage()], shops: ['shops', shopsPage], riders: ['riders', ridersPage], report: ['report', reportOf], offers: ['ads', offersPage], refunds: ['refunds', refundsPage],
-    support: ['support', supportPage], fee: ['settings', feePage], team: ['team', () => T().teamPage()], audit: ['audit', () => T().auditPage()], order: ['orders', (code) => T().orderPage(code)]
+    support: ['support', supportPage], fee: ['settings', feePage], 'new-shop': ['shop.add', newShopPage], visit: ['visit', (id) => window.LHCats.visitPage(id)], team: ['team', () => T().teamPage()], audit: ['audit', () => T().auditPage()], order: ['orders', (code) => T().orderPage(code)]
   };
-  const DEEP = ['support', 'report', 'order'];
+  const DEEP = ['support', 'report', 'order', 'visit'];
   function page(parts) {
     if (!Store.isAdmin()) {
       if (parts[0]) { location.hash = '#/admin'; return ''; }
@@ -452,6 +524,10 @@ window.LHAdmin = (function () {
         case 'assign': Store.assignRider(d.id, $('as-' + d.id).value); U.toast('ডেলিভারি ম্যানকে পাঠানো হয়েছে'); U.route(true); break;
         case 'team-deliver': Store.teamDeliver(d.id); U.toast('ডেলিভারি সম্পন্ন হয়েছে'); U.route(true); break;
         case 'area-edit': areaSheet(d.kind, d.id); break;
+        case 'ns-more': if (document.querySelectorAll('.ns-item').length < 30) $('ns-items').insertAdjacentHTML('beforeend', itemRow()); break;
+        case 'added-ok': Store.teamCheckShop(d.id, true); U.toast('অনুমোদন হয়েছে, এখন ব্যবহারকারীরা দেখবেন'); U.route(true); break;
+        case 'added-no': reasonSheet('যোগ করা দোকান বাতিল করবেন?', 'যিনি যোগ করেছেন তিনি কারণ দেখবেন। দোকানটি ব্যবহারকারীরা দেখবেন না।', 'added-no', d.id, 'বাতিল করুন'); break;
+        case 'main-cat': mainCatSheet(d.id); break;
         case 'ratings': ratingsSheet(d.about, d.id); break;
         case 'rating-toggle':
           if (d.hide) { reasonSheet('রেটিং লুকাবেন?', 'গ্রাহকরা এই রেটিং আর দেখবেন না। কারণ লগে থাকবে।', 'rating', d.id, 'লুকান', `data-about="${U.esc(d.about)}" data-target="${U.esc(d.target)}"`); break; }
@@ -477,6 +553,12 @@ window.LHAdmin = (function () {
   }
   function onChange(e) {
     if (e.target.id === 'ar-zila') { $('ar-list').innerHTML = U.upazilaOptions(e.target.value); return; }
+    if (e.target.id === 'ns-zila') {
+      $('ns-areas').innerHTML = U.upazilaOptions(e.target.value);
+      const pos = window.LH_GEO_POS[e.target.value];
+      if (pos && nsMap && !nsPin) nsMap.map.setView(pos, 12);
+      return;
+    }
     // the ad form: a product ad lists the chosen shop's products
     if (e.target.id === 'adf-shop') { $('adf-item').innerHTML = `<option value="">বেছে নিন</option>${itemOptions(e.target.value, '')}`; return; }
     if (e.target.name === 'adf-kind') { $('adf-item-row').hidden = e.target.value !== 'item'; return; }
@@ -489,6 +571,29 @@ window.LHAdmin = (function () {
   }
   function onSubmit(e) {
     const f = e.target;
+    if (f.id === 'new-shop') {
+      e.preventDefault();
+      const week = window.LHBook.readWeek();
+      if (!week) return;
+      const num = (v) => { const t = digits(String(v || '')).trim(); return t === '' ? 0 : /^\d+$/.test(t) ? Number(t) : NaN; };
+      const items = [...document.querySelectorAll('.ns-item')].map((r) => ({ name: r.querySelector('[data-ns=name]').value, unit: r.querySelector('[data-ns=unit]').value, price: num(r.querySelector('[data-ns=price]').value) }));
+      const zila = $('ns-zila').value;
+      try {
+        const x = Store.teamAddShop({
+          ownerName: $('ns-owner').value, ownerPhone: digits($('ns-phone').value), name: $('ns-name').value, sub: $('ns-sub').value,
+          zila, area: zila ? window.LHI18n.areaKey(zila, $('ns-area').value) : $('ns-area').value, market: $('ns-market').value, address: $('ns-address').value,
+          lat: nsPin ? nsPin.lat : NaN, lng: nsPin ? nsPin.lng : NaN, week, items
+        });
+        U.toast(x.added.status === 'ok' ? 'দোকান যোগ হয়েছে, এখন ব্যবহারকারীরা দেখবেন' : 'দোকান যোগ হয়েছে, ভেরিফিকেশনের অনুমোদনের অপেক্ষায়');
+        U.route();
+      } catch (ex) { $('ns-err').textContent = ex.message; }
+      return;
+    }
+    if (f.id === 'main-cat') {
+      e.preventDefault();
+      try { Store.teamSetMainCat(f.dataset.id, $('mc-sub').value); U.closeSheet(); U.toast('সংরক্ষিত'); U.route(true); } catch (ex) { $('mc-err').textContent = ex.message; }
+      return;
+    }
     if (f.id === 'admin-limit') {
       e.preventDefault();
       try { Store.setRefundLimit(intOf('ad-limit')); U.toast('সংরক্ষিত'); U.route(true); } catch (ex) { $('ad-limit-err').textContent = ex.message; }
@@ -523,6 +628,7 @@ window.LHAdmin = (function () {
         else if (k === 'ad-del') Store.deleteAd(f.dataset.id, why);
         else if (k === 'refund-back') Store.refundCheck(f.dataset.id, false, why);
         else if (k === 'rating') Store.setRatingHidden(f.dataset.id, true, why);
+        else if (k === 'added-no') Store.teamCheckShop(f.dataset.id, false, why);
         else Store.blockRider(f.dataset.id, why);
         U.closeSheet();
         U.toast({ papers: 'কাগজ ফেরত দেওয়া হয়েছে', 'offer-del': 'মুছে ফেলা হয়েছে', 'ad-del': 'মুছে ফেলা হয়েছে', 'refund-back': 'ফেরত পাঠানো হয়েছে', rating: 'রেটিং লুকানো হয়েছে' }[k] || 'স্থগিত হয়েছে');
@@ -577,5 +683,5 @@ window.LHAdmin = (function () {
     document.addEventListener('change', onChange);
     document.addEventListener('submit', onSubmit);
   }
-  return { init, tabs, page };
+  return { init, tabs, page, mount };
 })();

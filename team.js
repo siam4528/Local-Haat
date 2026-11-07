@@ -22,6 +22,8 @@ window.LHTeam = (function () {
     'ticket-reply': 'সাপোর্টের উত্তর', 'ticket-close': 'অনুরোধ বন্ধ', 'ticket-open': 'অনুরোধ আবার খোলা', 'callback-done': 'কল ব্যাক শেষ',
     'cat-approve': 'ক্যাটাগরি অনুমোদন', 'cat-refuse': 'ক্যাটাগরির অনুরোধ বাতিল', 'cat-grant': 'ক্যাটাগরি সরাসরি যোগ', 'cat-remove': 'ক্যাটাগরি বাদ',
     setting: 'সেটিং বদল', 'team-add': 'সদস্য যোগ', 'team-role': 'দায়িত্ব বদল', 'team-off': 'একাউন্ট বন্ধ', 'team-on': 'একাউন্ট চালু',
+    'shop-add': 'নতুন দোকান যোগ', 'shop-approve': 'যোগ করা দোকান অনুমোদন', 'shop-refuse': 'যোগ করা দোকান বাতিল', 'shop-cat': 'মূল ক্যাটাগরি বদল', 'shop-claim': 'মালিক দোকান নিয়েছেন',
+    'visit-plan': 'পরিদর্শন ঠিক করা', 'visit-done': 'পরিদর্শনের ফলাফল',
     'see-phone': 'ফোন নম্বর দেখা', 'see-address': 'ঠিকানা দেখা', 'see-nid': 'এনআইডির ছবি দেখা', 'see-licence': 'ট্রেড লাইসেন্সের ছবি দেখা'
   };
   const KIND = { shop: 'এজেন্ট', rider: 'ডেলিভারি ম্যান', order: 'অর্ডার', ticket: 'সাপোর্ট', team: 'টিম', setting: 'সেটিং', offer: 'অফার', ad: 'বিজ্ঞাপন', rating: 'রেটিং' };
@@ -100,6 +102,18 @@ window.LHTeam = (function () {
       })));
     }
     if (can('shop.verify')) {
+      add('added', '🆕', 'টিমের যোগ করা দোকান যাচাই', '#/admin/shops', '২ কর্মদিবস', D().shops.filter((s) => s.added && s.added.status === 'pending' && can('shop.verify', s)).map((s) => ({
+        at: s.added.at, due: Store.addWorkDays(s.added.at, 2), title: U.ud(s.name), sub: `<span>${U.esc(s.sub)}</span> · ${U.ud(s.added.byName)}`, href: '#/admin/shops'
+      })));
+    }
+    // visits planned for this person
+    if (can('visit')) {
+      const me = Store.teamMe();
+      add('visits', '🏠', 'দোকান পরিদর্শন', '#/admin', 'নির্ধারিত দিনে', D().catAsks.filter((a) => a.status === 'open' && a.visit && a.visit.status === 'planned' && a.visit.who === me.id).map((a) => ({
+        at: a.visit.at, due: window.LHTime.at(a.visit.date, '23:59'), title: U.ud(Store.shopById(a.shopId).name), sub: `<span>${U.esc(a.sub)}</span> · ${window.LHTime.show(window.LHTime.at(a.visit.date, '12:00'), { day: 'numeric', month: 'short' }, window.LHI18n.lang)}`, href: '#/admin/visit/' + a.id
+      })));
+    }
+    if (can('shop.verify')) {
       add('shops', '🏪', 'নতুন এজেন্ট যাচাই', '#/admin/shops', '৩ কর্মদিবস', D().shops.filter((s) => !s.verified && can('shop.verify', s)).map((s) => ({
         at: s.createdAt || '', due: s.createdAt ? Store.addWorkDays(s.createdAt, 3) : null, title: U.ud(s.name), sub: `${U.geo(s.area)}, ${U.geo(s.zila)}`, href: '#/admin/shops'
       })));
@@ -114,6 +128,7 @@ window.LHTeam = (function () {
     return `<div class="page-row"><h1 class="page-h">কাজের তালিকা</h1></div>
       <section class="panel team-me"><span><b>👤 ${U.ud(me.name)}</b><small>${roleText(me)}</small></span>
         <span class="team-links">${Store.can('team') ? '<a class="btn ghost sm" href="#/admin/team">👥 টিম</a>' : ''}${Store.can('audit') ? '<a class="btn ghost sm" href="#/admin/audit">📜 অডিট লগ</a>' : ''}<button type="button" class="btn ghost sm" data-team="logout">লগ আউট</button></span></section>
+      ${Store.can('shop.add') ? '<a class="btn block gap-t" href="#/admin/new-shop">+ নতুন দোকান বা সেবা যোগ করুন</a>' : ''}
       ${Store.can('orders') ? `<form id="team-order" class="panel order-find" role="search" novalidate><label class="field"><span>🔎 অর্ডার খুঁজুন</span><input id="to-code" type="text" inputmode="numeric" maxlength="12" placeholder="অর্ডার নম্বর"></label><button type="submit" class="btn">খুঁজুন</button><small class="err" id="to-err" role="alert"></small></form>` : ''}
       <p class="meta gap gap-t">${total ? '<span>সবচেয়ে জরুরি কাজ আগে, প্রতিটি তালিকায় সবচেয়ে পুরনোটি আগে।</span>' : '<span>এখন কোনো কাজ বাকি নেই।</span>'} <span>শুক্র ও শনিবার কর্মদিবস নয়।</span></p>
       <div class="stack">${lists.map((l) => {

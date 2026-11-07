@@ -404,7 +404,7 @@ window.LHBook = (function () {
   function bookPage(shopId, itemId, from, to) {
     const s = Store.shopById(shopId);
     const it = s && s.items.find((x) => x.id === itemId);
-    if (!s || !Store.shopLive(s) || !it || !it.book || !it.available) return null;
+    if (!s || !Store.shopLive(s) || s.listing || !it || !it.book || !it.available) return null;
     if (it.book === 'bus') return busBookPage(s, it, from, to);
     const blocked = gate(`#/book/${shopId}/${itemId}`, 'বুকিং করতে লগইন করুন');
     const back = `<a class="back" href="#/shop/${s.id}">‹ ${U.ud(s.name)}</a>`;
