@@ -1903,9 +1903,9 @@ window.LHStore = (function () {
     Object.assign(c, { status: 'pending', about: words(about).slice(0, 300) || c.about, at: new Date().toISOString() });
     save();
   }
-  // the team (verification or the super admin) approves or refuses a company's account
+  // only the super admin approves or refuses a company's account; verification may look, not decide
   function companyDecide(id, ok, reason) {
-    const me = need('company');
+    const me = need('company.decide');
     const c = companyById(id) || fail('কোম্পানি পাওয়া যায়নি');
     if (c.status !== 'pending') fail('এই কোম্পানির সিদ্ধান্ত আগেই হয়েছে');
     const why = ok ? '' : reasonOf(reason);

@@ -121,7 +121,7 @@ window.LHTeam = (function () {
         at: a.visit.at, due: window.LHTime.at(a.visit.date, '23:59'), title: U.ud(Store.shopById(a.shopId).name), sub: `<span>${U.esc(a.sub)}</span> · ${window.LHTime.show(window.LHTime.at(a.visit.date, '12:00'), { day: 'numeric', month: 'short' }, window.LHI18n.lang)}`, href: '#/admin/visit/' + a.id
       })));
     }
-    if (can('company')) {
+    if (can('company.decide')) {
       add('companies', '🏭', 'কোম্পানির আবেদন', '#/admin/companies', '২ কর্মদিবস', (D().companies || []).filter((c) => c.status === 'pending').map((c) => ({
         at: c.at, due: Store.addWorkDays(c.at, 2), title: U.ud(c.name), sub: U.ud(c.person), href: '#/admin/companies'
       })));

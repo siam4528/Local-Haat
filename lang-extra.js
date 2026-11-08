@@ -1873,5 +1873,7 @@ Object.assign(window.LH_LANG.en, {
   /* Part 10: cards issued abroad */
   'ভিসা, মাস্টারকার্ড বা অ্যামেক্স। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "Visa, Mastercard or Amex. Visa and Mastercard cards issued abroad work too.",
   'আসল সাইটে এখানে ব্যাংকের নিরাপদ পেমেন্ট পাতা খুলবে। কার্ডের নম্বর সেখানেই দেবেন। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "On the real site the bank's secure payment page opens here. Give the card number there. Visa and Mastercard cards issued abroad work too.",
-  'বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "Visa and Mastercard cards issued abroad work too."
+  'বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "Visa and Mastercard cards issued abroad work too.",
+  /* only the super admin approves companies */
+  'সুপার অ্যাডমিন অনুমোদন দেবেন': "The super admin will approve"
 });

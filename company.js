@@ -2,7 +2,8 @@
 // picture, a group, a quantity and the MRP, and sees its report: sales by product and by division, district and upazila,
 // and in how many shops each product is. Never who bought; the shops' names only on the team's view.
 // Shops pick brand products by group (those of their sub-category first) and LocalHaat's common list, which they price.
-// The team approves companies (verification, the super admin) and keeps the common list (the divisions' staff, the super admin).
+// Only the super admin approves companies; verification sees them and their reports. The divisions' staff and the super
+// admin keep the common list.
 window.LHCompany = (function () {
   'use strict';
   const Store = window.LHStore;
@@ -184,6 +185,7 @@ window.LHCompany = (function () {
     const all = D().companies || [];
     const chip = (k) => `<button type="button" class="chip ${coTab === k ? 'on' : ''}" aria-pressed="${coTab === k}" data-co="co-tab" data-id="${k}">${STATUS[k]} (${U.bn(all.filter((c) => c.status === k).length)})</button>`;
     const list = all.filter((c) => c.status === coTab);
+    const decide = Store.can('company.decide');
     return `<a class="back" href="#/admin">‹ কাজের তালিকা</a><h1 class="page-h">🏭 কোম্পানি</h1>
       <div class="chips" role="group" aria-label="অবস্থা">${['pending', 'ok', 'no'].map(chip).join('')}</div>
       ${list.length ? `<div class="stack">${list.map((c) => `<article class="panel co-team" id="co-${c.id}">
@@ -191,7 +193,7 @@ window.LHCompany = (function () {
           ${c.about ? `<p class="meta">${U.ud(c.about)}</p>` : ''}
           <p class="meta"><span>আবেদন</span>: ${U.fmtTime(c.at)}${c.decided ? ` · <span>সিদ্ধান্ত</span>: ${U.ud(c.decided.byName)}, ${U.fmtTime(c.decided.at)}` : ''}</p>
           ${c.status === 'no' ? `<p class="note"><span>কারণ</span>: ${U.ud(c.reason)}</p>` : ''}
-          <div class="o-acts">${c.status === 'pending' ? `<button type="button" class="btn sm" data-co="co-ok" data-id="${c.id}">✓ অনুমোদন দিন</button><button type="button" class="btn ghost sm" data-co="co-no" data-id="${c.id}">বাতিল করুন</button>` : ''}
+          <div class="o-acts">${c.status === 'pending' ? (decide ? `<button type="button" class="btn sm" data-co="co-ok" data-id="${c.id}">✓ অনুমোদন দিন</button><button type="button" class="btn ghost sm" data-co="co-no" data-id="${c.id}">বাতিল করুন</button>` : '<p class="meta co-super"><span aria-hidden="true">🔒</span> সুপার অ্যাডমিন অনুমোদন দেবেন</p>') : ''}
             ${c.status === 'ok' ? `<a class="btn ghost sm" href="#/admin/companies/${c.id}">📊 <span>রিপোর্ট ও দোকান</span> (${U.bn(Store.brandsOf(c.id).length)} <span>পণ্য</span>)</a>` : ''}</div>
         </article>`).join('')}</div>` : '<div class="empty"><span aria-hidden="true">🏭</span><h3>এখানে কোনো কোম্পানি নেই</h3></div>'}`;
   }
