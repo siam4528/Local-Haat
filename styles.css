@@ -1330,6 +1330,24 @@ body[data-page="map"] .top-in > .search { display: none; }
 .su-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
 .su-list small { color: var(--muted); }
 .bi-head { box-shadow: none; padding: 0 0 10px; }
+/* round 2: a company's own groups and categories */
+.co-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.co-group { margin-bottom: 16px; }
+.co-gh { margin: 4px 0 8px; font-size: 18px; }
+.co-gh small { display: inline-block; min-width: 22px; padding: 0 7px; margin-left: 4px; font-size: 12.5px; font-weight: 700; text-align: center; color: var(--muted); background: var(--soft); border-radius: 99px; }
+.co-ch { margin: 10px 0 6px; font-size: 14.5px; color: var(--muted); }
+.co-gcard { margin-bottom: 10px; }
+.co-gcard .o-head { gap: 8px; }
+.co-gcard .o-head small { display: block; color: var(--muted); }
+.co-gcard .o-head > .own-acts { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 6px; flex: none; }
+.co-gcard .o-head > div:first-child { flex: 1; min-width: 0; }
+.co-item .own-acts { flex: none; }
+.co-gcard .cm-list { margin: 6px 0; }
+.cg-subs { max-height: 300px; overflow-y: auto; padding: 4px 2px; border: 1px solid var(--line); border-radius: 11px; }
+.cg-kind { padding: 6px 8px; }
+.cg-kind > b { display: block; margin-bottom: 4px; font-size: 13.5px; color: var(--muted); }
+.cg-kind .chk { padding: 4px 0; }
+.bp-hint { margin: 4px 0 10px; }
 @media (max-width: 420px) {
   .side-pick a { padding: 0 7px; }
   .strip { gap: 2px; padding: 4px 4px; font-size: 12.5px; }

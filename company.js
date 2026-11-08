@@ -1,7 +1,9 @@
 // Companies and their brands. A company signs up and the LocalHaat team approves it; then it lists its products with a
 // picture, a group, a quantity and the MRP, and sees its report: sales by product and by division, district and upazila,
 // and in how many shops each product is. Never who bought; the shops' names only on the team's view.
-// Shops pick brand products by group (those of their sub-category first) and LocalHaat's common list, which they price.
+// A company puts each product in a group (LocalHaat's, or its own, with the kinds of shop that sell it) and, if it likes,
+// in a category of its own inside that group. Shops see the brand products of their own kind and find any other by
+// searching; they also pick from LocalHaat's common list, which they price.
 // Only the super admin approves companies; verification sees them and their reports. The divisions' staff and the super
 // admin keep the common list.
 window.LHCompany = (function () {
@@ -21,6 +23,8 @@ window.LHCompany = (function () {
   const picked = new Set(); // brand products ticked in a shop's picker
   const suPicked = new Set(); // ticked at an agent's sign up
   let cmDraft = null;
+  let gDraft = null; // the company's own group being edited
+  let cDraft = null; // the category being edited
 
   const me = () => Store.companyMe();
   const MONTHS = 3;
@@ -28,12 +32,15 @@ window.LHCompany = (function () {
   const thumb = (b) => U.thumbHtml({ image: b.pic, icon: b.icon });
   const stat = (value, label) => `<div><b>${value}</b><span>${label}</span></div>`;
   const shopsOf = (id) => D().shops.filter((s) => Store.shopLive(s) && s.items.some((it) => it.brand === id)).length;
+  // LocalHaat's group names have English; a company's own group is its own words, kept as written
+  const gname = (g) => (Object.hasOwn(Store.BRAND_GROUPS, g) ? U.esc(g) : U.ud(g));
+  const catsOf = (c, g) => (c.cats || []).filter((x) => x.group === g);
 
   function tabs(link) {
     const h = location.hash;
     const c = me();
     if (!c || c.status !== 'ok') return link('#/company', '🏭', 'প্যানেল', true);
-    return link('#/company', '📦', 'পণ্য', h === '#/company' || h === '#/company/') + link('#/company/report', '📊', 'রিপোর্ট', h.startsWith('#/company/report'));
+    return link('#/company', '📦', 'পণ্য', h === '#/company' || h === '#/company/' || h.startsWith('#/company/groups')) + link('#/company/report', '📊', 'রিপোর্ট', h.startsWith('#/company/report'));
   }
 
   /* ---------- the company's own side ---------- */
@@ -44,6 +51,7 @@ window.LHCompany = (function () {
     if (!c) { if (p) { location.hash = '#/company'; return ''; } return loginPage(); }
     if (c.status !== 'ok') { if (p) { location.hash = '#/company'; return ''; } return waitPage(c); }
     if (!p) return productsPage(c);
+    if (p === 'groups' && !parts[1]) return groupsPage(c);
     if (p === 'report' && !parts[1]) return reportPage();
     return null;
   }
@@ -118,18 +126,101 @@ window.LHCompany = (function () {
       <h1 class="page-h">⏳ যাচাই চলছে</h1><p><b>${U.ud(c.name)}</b></p>
       <p class="meta">লোকালহাট টিম আপনার কোম্পানি যাচাই করছে। অনুমোদন হলে এখানে পণ্য যোগ করতে পারবেন।</p>${logout()}</section></div>`;
   }
+  // the products, by group and then category; those of a group without a category come last, under "others"
   function productsPage(c) {
     const list = Store.brandsOf(c.id);
+    const row = (b) => `<li class="item co-item" id="cb-${b.id}">${thumb(b)}
+          <div class="item-txt"><b>${U.ud(b.name)}</b><small>${U.ud(b.unit)} · <span>দোকান</span>: ${U.bn(shopsOf(b.id))}</small><span class="price">MRP ${U.tk(b.mrp)}</span></div>
+          <div class="own-acts"><button type="button" class="btn ghost sm" data-co="edit" data-id="${b.id}">এডিট</button></div></li>`;
+    const ul = (rows) => `<ul class="items">${rows.map(row).join('')}</ul>`;
+    const section = (g) => {
+      const mine = list.filter((b) => b.group === g);
+      const cats = catsOf(c, g).filter((x) => mine.some((b) => b.cat === x.id));
+      const loose = mine.filter((b) => !cats.some((x) => x.id === b.cat));
+      return `<section class="co-group"><h2 class="co-gh">${gname(g)} <small>${U.bn(mine.length)}</small></h2>
+        ${cats.map((x) => `<h3 class="co-ch">${U.ud(x.name)}</h3>${ul(mine.filter((b) => b.cat === x.id))}`).join('')}
+        ${loose.length ? `${cats.length ? '<h3 class="co-ch">অন্যান্য</h3>' : ''}${ul(loose)}` : ''}</section>`;
+    };
     return `<div class="page-row"><h1 class="page-h">${U.ud(c.name)}</h1><button type="button" class="btn" data-co="new">+ নতুন পণ্য</button></div>
       <p class="meta gap">দোকান আপনার পণ্য MRP-তে বিক্রি করবে, দাম বদলাতে পারবে না; শুধু স্টকে আছে কিনা জানাবে। MRP বদলালে সব দোকানে সাথে সাথে নতুন দাম।</p>
-      ${list.length ? `<ul class="items">${list.map((b) => `<li class="item co-item" id="cb-${b.id}">${thumb(b)}
-          <div class="item-txt"><b>${U.ud(b.name)}</b><small>${U.ud(b.unit)} · <span>${U.esc(b.group)}</span> · <span>দোকান</span>: ${U.bn(shopsOf(b.id))}</small><span class="price">MRP ${U.tk(b.mrp)}</span></div>
-          <div class="own-acts"><button type="button" class="btn ghost sm" data-co="edit" data-id="${b.id}">এডিট</button></div></li>`).join('')}</ul>`
+      <div class="co-tools"><a class="btn ghost sm" href="#/company/groups"><span aria-hidden="true">🗂️</span> গ্রুপ ও ক্যাটাগরি</a></div>
+      ${list.length ? Store.groupNames(c).filter((g) => list.some((b) => b.group === g)).map(section).join('')
         : '<div class="empty"><span aria-hidden="true">📦</span><h3>এখনো কোনো পণ্য নেই</h3><p>প্রথম পণ্য যোগ করলে দোকানগুলো বেছে নিতে পারবে।</p></div>'}
       ${logout()}`;
   }
+  // the company's own groups, and its categories in any group
+  function groupsPage(c) {
+    const list = Store.brandsOf(c.id);
+    const own = c.groups || [];
+    const n = (f) => list.filter(f).length;
+    const used = Object.keys(Store.BRAND_GROUPS).filter((g) => list.some((b) => b.group === g) || catsOf(c, g).length);
+    const catRow = (x) => `<li id="cc-${x.id}"><span class="cm-name"><b>${U.ud(x.name)}</b><small><span>পণ্য</span>: ${U.bn(n((b) => b.cat === x.id))}</small></span>
+        <button type="button" class="btn ghost sm" data-co="c-edit" data-id="${x.id}">এডিট</button><button type="button" class="btn danger sm" data-co="c-del" data-id="${x.id}">মুছুন</button></li>`;
+    const card = (g, mine, key) => {
+      const cats = catsOf(c, g);
+      return `<section class="panel co-gcard" id="${key}">
+        <div class="o-head"><div><b>${gname(g)}</b><small><span>পণ্য</span>: ${U.bn(n((b) => b.group === g))}</small></div>
+          ${mine ? `<div class="own-acts"><button type="button" class="btn ghost sm" data-co="g-edit" data-id="${mine.id}">এডিট</button><button type="button" class="btn danger sm" data-co="g-del" data-id="${mine.id}">মুছুন</button></div>` : ''}</div>
+        ${mine ? `<p class="meta"><span>যেসব দোকান দেখবে</span>: ${mine.subs.map((x) => U.esc(x)).join(', ')}</p>` : ''}
+        ${cats.length ? `<ul class="cm-list">${cats.map(catRow).join('')}</ul>` : '<p class="meta">কোনো ক্যাটাগরি নেই</p>'}
+        <button type="button" class="inline" data-co="c-new" data-group="${U.esc(g)}">+ এই গ্রুপে ক্যাটাগরি</button></section>`;
+    };
+    return `<a class="back" href="#/company">‹ পণ্য</a><h1 class="page-h"><span aria-hidden="true">🗂️</span> গ্রুপ ও ক্যাটাগরি</h1>
+      <p class="meta gap">লোকালহাটের যেকোনো গ্রুপের ভেতরে নিজের ক্যাটাগরি বানাতে পারেন। দরকার হলে নিজের গ্রুপও বানান: যেসব ধরনের দোকান বেছে নেবেন, তারা এই গ্রুপের পণ্য নিজের তালিকায় দেখবে। শুধু খালি গ্রুপ বা ক্যাটাগরি মোছা যায়।</p>
+      <div class="co-tools"><button type="button" class="btn" data-co="g-new">+ নতুন গ্রুপ</button><button type="button" class="btn ghost" data-co="c-new" data-group="">+ নতুন ক্যাটাগরি</button></div>
+      <h2 class="page-h gap-t">নিজের গ্রুপ</h2>
+      ${own.length ? own.map((g) => card(g.name, g, 'cg-' + g.id)).join('') : '<p class="meta">এখনো নিজের কোনো গ্রুপ নেই</p>'}
+      <h2 class="page-h gap-t">লোকালহাটের গ্রুপ</h2>
+      <p class="meta">যেগুলোতে আপনার পণ্য বা ক্যাটাগরি আছে</p>
+      ${used.length ? used.map((g, i) => card(g, null, 'cgl-' + i)).join('') : '<p class="meta">এখনো নেই</p>'}`;
+  }
+  function groupSheet(id) {
+    const g = id ? (me().groups || []).find((x) => x.id === id) : null;
+    gDraft = id || null;
+    const kinds = window.LH.cats.filter((x) => x.kind === 'shop');
+    const en = (x) => window.LHI18n.en(x).toLowerCase();
+    U.openSheet(`<h2 id="sheet-h">${g ? 'গ্রুপ এডিট করুন' : 'নতুন গ্রুপ'}</h2>
+      <form id="co-group" novalidate>
+        <label class="field"><span>গ্রুপের নাম</span><input id="cgf-name" type="text" maxlength="40" value="${U.esc(g ? g.name : '')}" placeholder="যেমন শিশুর খাবার"></label>
+        <fieldset class="field fs"><legend>কোন ধরনের দোকানে বিক্রি হবে</legend>
+          <small>এই ধরনের দোকান এই গ্রুপের পণ্য নিজের তালিকায় দেখবে। এক বা একাধিক বেছে নিন।</small>
+          <label class="field"><span class="sr">দোকানের ধরন খুঁজুন</span><input id="cgf-q" type="search" placeholder="দোকানের ধরন খুঁজুন" autocomplete="off"></label>
+          <div class="cg-subs" id="cgf-subs">${kinds.map((k) => `<div class="cg-kind"><b>${U.esc(k.label)}</b>${k.examples.map((x) => `<label class="chk" data-find="${U.esc(x.toLowerCase() + ' ' + en(x))}"><input type="checkbox" data-cg-sub value="${U.esc(x)}" ${g && g.subs.includes(x) ? 'checked' : ''}><span>${U.esc(x)}</span></label>`).join('')}</div>`).join('')}</div>
+        </fieldset>
+        <small class="err" id="cgf-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">সংরক্ষণ করুন</button>
+      </form>
+      <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
+  }
+  function catSheet(id, group) {
+    const c = me();
+    const x = id ? (c.cats || []).find((y) => y.id === id) : null;
+    cDraft = id || null;
+    const at = x ? x.group : group;
+    U.openSheet(`<h2 id="sheet-h">${x ? 'ক্যাটাগরি এডিট করুন' : 'নতুন ক্যাটাগরি'}</h2>
+      <form id="co-cat" novalidate>
+        <label class="field"><span>গ্রুপ</span><select id="ccf-group" ${x ? 'disabled' : ''}><option value="">বেছে নিন</option>${Store.groupNames(c).map((g) => `<option value="${U.esc(g)}" ${at === g ? 'selected' : ''}>${gname(g)}</option>`).join('')}</select>${x ? '<small>ক্যাটাগরির গ্রুপ বদলানো যায় না</small>' : ''}</label>
+        <label class="field"><span>ক্যাটাগরির নাম</span><input id="ccf-name" type="text" maxlength="40" value="${U.esc(x ? x.name : '')}" placeholder="যেমন গ্রিন টি"></label>
+        <small class="err" id="ccf-err" role="alert"></small>
+        <button type="submit" class="btn block sheet-go">সংরক্ষণ করুন</button>
+      </form>
+      <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
+  }
+  function delSheet(kind, id) {
+    const c = me();
+    const x = kind === 'g' ? (c.groups || []).find((y) => y.id === id) : (c.cats || []).find((y) => y.id === id);
+    if (!x) return;
+    U.openSheet(`<h2 id="sheet-h">${kind === 'g' ? 'গ্রুপ মুছবেন?' : 'ক্যাটাগরি মুছবেন?'}</h2><p><b>${U.ud(x.name)}</b></p>
+      ${kind === 'g' ? '<p class="meta">গ্রুপের ক্যাটাগরিগুলোও মুছে যাবে।</p>' : ''}
+      <small class="err" id="cdel-err" role="alert"></small>
+      <button type="button" class="btn danger block sheet-go" data-co="del-yes" data-kind="${kind}" data-id="${id}">মুছুন</button>
+      <button type="button" class="link" data-action="close-sheet">বাতিল</button>`);
+  }
+  // a group's categories in the product form; "+" writes a new one there
+  const catOptions = (c, g, sel) => `<option value="">ক্যাটাগরি ছাড়া</option>${catsOf(c, g).map((x) => `<option value="${x.id}" ${sel === x.id ? 'selected' : ''}>${U.ud(x.name)}</option>`).join('')}${g ? '<option value="+">+ নতুন ক্যাটাগরি</option>' : ''}`;
   function productSheet(id) {
-    const b = id ? Store.brandsOf(me().id).find((x) => x.id === id) : null;
+    const c = me();
+    const b = id ? Store.brandsOf(c.id).find((x) => x.id === id) : null;
     draft = id || null;
     pic = undefined;
     const icon = b ? b.icon : ICONS[0];
@@ -140,7 +231,10 @@ window.LHCompany = (function () {
           <div class="it-upload-acts"><label class="btn ghost sm upload"><input type="file" class="sr" accept="image/jpeg,image/png,image/webp" data-co-pic>ছবি বাছুন</label>
             <button type="button" class="inline" id="cp-pic-del" data-co="pic-del" ${b && b.pic ? '' : 'hidden'}>ছবি মুছুন</button><small>JPG, PNG বা WebP। বর্গাকারে কাটা হবে।</small></div></div></div>
         <label class="field"><span>পণ্যের নাম (ব্র্যান্ডসহ)</span><input id="cp-name" type="text" maxlength="80" value="${U.esc(b ? b.name : '')}"></label>
-        <label class="field"><span>গ্রুপ</span><select id="cp-group"><option value="">বেছে নিন</option>${Object.keys(Store.BRAND_GROUPS).map((g) => `<option value="${U.esc(g)}" ${b && b.group === g ? 'selected' : ''}>${U.esc(g)}</option>`).join('')}</select></label>
+        <label class="field"><span>গ্রুপ</span><select id="cp-group"><option value="">বেছে নিন</option>${Store.groupNames(c).map((g) => `<option value="${U.esc(g)}" ${b && b.group === g ? 'selected' : ''}>${gname(g)}</option>`).join('')}</select>
+          <small><span>নিজের গ্রুপ লাগলে</span>: <a href="#/company/groups">গ্রুপ ও ক্যাটাগরি</a></small></label>
+        <label class="field"><span>ক্যাটাগরি <i>(ঐচ্ছিক)</i></span><select id="cp-cat">${catOptions(c, b ? b.group : '', b ? b.cat : '')}</select></label>
+        <label class="field" id="cp-newcat-f" hidden><span>নতুন ক্যাটাগরির নাম</span><input id="cp-newcat" type="text" maxlength="40" placeholder="যেমন গ্রিন টি"></label>
         <div class="row2">
           <label class="field"><span>পরিমাণ</span><input id="cp-unit" type="text" maxlength="30" value="${U.esc(b ? b.unit : '')}" placeholder="যেমন ১ লিটার"></label>
           <label class="field"><span>MRP (৳)</span><input id="cp-mrp" type="text" inputmode="numeric" value="${b ? U.bn(b.mrp) : ''}" placeholder="০"></label>
@@ -263,21 +357,24 @@ window.LHCompany = (function () {
     const a = (href, key, label) => `<a href="${href}" class="${on === key ? 'on' : ''}" ${on === key ? 'aria-current="page"' : ''}>${label}</a>`;
     return `<nav class="seg ${brand && common ? 'three' : ''} own-seg" aria-label="তালিকা">${a('#/owner/items', '', s.kind === 'service' ? 'নিজের সেবা' : 'নিজের পণ্য')}${brand ? a('#/owner/items/brand', 'brand', '🏷️ ব্র্যান্ডের পণ্য') : ''}${common ? a('#/owner/items/common', 'common', '📋 কমন তালিকা') : ''}</nav>`;
   }
+  // A shop sees the brand products of its own kind (its sub-categories), by group. The search looks through every
+  // company's products, for one the shop sells that is not of its kind.
   function brandPage(s) {
     const all = Store.brandChoices(s);
     const recs = all.filter((x) => x.rec);
-    const groups = [...new Set(all.map((x) => x.b.group))];
-    const g = bpGroup === 'all' || groups.includes(bpGroup) ? bpGroup : recs.length ? 'rec' : 'all';
-    const list = all.filter((x) => (g === 'all' ? true : g === 'rec' ? x.rec : x.b.group === g));
+    const groups = [...new Set(recs.map((x) => x.b.group))];
+    const g = groups.includes(bpGroup) ? bpGroup : 'all';
+    const def = (x) => x.rec && (g === 'all' || x.b.group === g);
     const chip = (k, label) => `<button type="button" class="chip ${g === k ? 'on' : ''}" aria-pressed="${g === k}" data-co="bp-group" data-id="${U.esc(k)}">${label}</button>`;
     return `${ownerSeg(s, 'brand')}<h1 class="page-h">ব্র্যান্ডের পণ্য</h1>
       <p class="meta gap">কোম্পানির দেওয়া MRP-তে বিক্রি হবে, দাম বদলানো যাবে না। আপনি শুধু স্টকে আছে কিনা জানাবেন।</p>
       <label class="field"><span class="sr">ব্র্যান্ড বা পণ্যের নাম খুঁজুন</span><input id="bp-q" type="search" placeholder="ব্র্যান্ড বা পণ্যের নাম খুঁজুন" autocomplete="off"></label>
-      <div class="chips" role="group" aria-label="গ্রুপ">${recs.length ? chip('rec', '⭐ আপনার জন্য') : ''}${chip('all', 'সব')}${groups.map((x) => chip(x, U.esc(x))).join('')}</div>
-      ${list.length ? `<ul class="items" id="bp-list">${list.map((x) => `<li class="item bp-item" data-name="${U.esc((x.b.name + ' ' + x.company).toLowerCase())}">
+      <p class="meta bp-hint">${recs.length ? 'আপনার দোকানের ধরনের পণ্য দেখানো হচ্ছে। দরকারি পণ্য না পেলে নাম লিখে খুঁজুন, সব কোম্পানির সব পণ্য থেকে খুঁজে দেবে।' : 'আপনার দোকানের ধরনের জন্য এখনো কোনো পণ্য নেই। নাম লিখে সব কোম্পানির সব পণ্য থেকে খুঁজুন।'}</p>
+      ${recs.length ? `<div class="chips" role="group" aria-label="গ্রুপ">${chip('all', 'সব')}${groups.map((x) => chip(x, gname(x))).join('')}</div>` : ''}
+      <ul class="items" id="bp-list">${all.map((x) => `<li class="item bp-item" data-name="${U.esc((x.b.name + ' ' + x.company).toLowerCase())}" data-def="${def(x) ? 1 : 0}" ${def(x) ? '' : 'hidden'}>
           <label class="bp-row">${x.has ? '<span class="tag ok">✓ আছে</span>' : `<input type="checkbox" data-bp="${x.b.id}" ${picked.has(x.b.id) ? 'checked' : ''}>`}
-            ${thumb(x.b)}<span class="item-txt"><b>${U.ud(x.b.name)}</b><small>${U.ud(x.b.unit)} · ${U.ud(x.company)}</small><span class="price">MRP ${U.tk(x.b.mrp)}</span></span></label></li>`).join('')}</ul>`
-        : '<div class="empty"><span aria-hidden="true">🏷️</span><h3>এই গ্রুপে কোনো পণ্য নেই</h3></div>'}
+            ${thumb(x.b)}<span class="item-txt"><b>${U.ud(x.b.name)}</b><small>${U.ud(x.b.unit)} · ${U.ud(x.company)}</small><span class="price">MRP ${U.tk(x.b.mrp)}</span></span></label></li>`).join('')}</ul>
+      <p class="meta" id="bp-none" hidden>এই নামে কোনো পণ্য নেই</p>
       <small class="err" id="bp-err" role="alert"></small>
       <button type="button" class="btn block gap-t" data-co="bp-add">বেছে নেওয়া পণ্য যোগ করুন</button>`;
   }
@@ -332,6 +429,20 @@ window.LHCompany = (function () {
         case 'edit': productSheet(d.id); break;
         case 'pic-del': pic = ''; $('cp-preview').innerHTML = '<span aria-hidden="true">📷</span>'; el.hidden = true; break;
         case 'co-tab': coTab = d.id; U.route(true); break;
+        case 'g-new': groupSheet(null); break;
+        case 'g-edit': groupSheet(d.id); break;
+        case 'g-del': delSheet('g', d.id); break;
+        case 'c-new': catSheet(null, d.group || ''); break;
+        case 'c-edit': catSheet(d.id, ''); break;
+        case 'c-del': delSheet('c', d.id); break;
+        case 'del-yes':
+          try {
+            if (d.kind === 'g') Store.groupDelete(d.id); else Store.catDelete(d.id);
+            U.closeSheet();
+            U.toast('মুছে ফেলা হয়েছে');
+            U.route(true);
+          } catch (ex) { $('cdel-err').textContent = ex.message; }
+          break;
         case 'co-ok': Store.companyDecide(d.id, true); U.toast('অনুমোদন হয়েছে, কোম্পানির প্যানেল খুলেছে'); U.route(true); break;
         case 'co-no': reasonSheet('co-no', d.id, 'আবেদন বাতিল করবেন?', 'কোম্পানি কারণ দেখবে এবং ঠিক করে আবার আবেদন করতে পারবে।', 'বাতিল করুন'); break;
         case 'cm-new': commonSheet(null); break;
@@ -364,6 +475,8 @@ window.LHCompany = (function () {
   }
   function onChange(e) {
     const t = e.target;
+    if (t.id === 'cp-group') { $('cp-cat').innerHTML = catOptions(me(), t.value, ''); $('cp-newcat-f').hidden = true; return; }
+    if (t.id === 'cp-cat') { $('cp-newcat-f').hidden = t.value !== '+'; if (t.value === '+') $('cp-newcat').focus(); return; }
     if (t.dataset.bp) { if (t.checked) picked.add(t.dataset.bp); else picked.delete(t.dataset.bp); return; }
     if (t.dataset.suBrand) { if (t.checked) suPicked.add(t.dataset.suBrand); else suPicked.delete(t.dataset.suBrand); return; }
     if (t.dataset.coPic !== undefined && t.files && t.files[0]) {
@@ -377,7 +490,17 @@ window.LHCompany = (function () {
   }
   function onInput(e) {
     const t = e.target;
-    if (t.id === 'bp-q') { const q = t.value.trim().toLowerCase(); document.querySelectorAll('#bp-list li').forEach((li) => { li.hidden = !!q && !li.dataset.name.includes(q); }); }
+    if (t.id === 'bp-q') {
+      const q = t.value.trim().toLowerCase();
+      let any = false;
+      document.querySelectorAll('#bp-list li').forEach((li) => { li.hidden = q ? !li.dataset.name.includes(q) : li.dataset.def !== '1'; any = any || !li.hidden; });
+      $('bp-none').hidden = any || !q;
+    }
+    if (t.id === 'cgf-q') {
+      const q = t.value.trim().toLowerCase();
+      document.querySelectorAll('#cgf-subs .chk').forEach((x) => { x.hidden = !!q && !x.dataset.find.includes(q); });
+      document.querySelectorAll('#cgf-subs .cg-kind').forEach((k) => { k.hidden = !k.querySelector('.chk:not([hidden])'); });
+    }
     // a price typed in ticks its row
     if (t.dataset && t.dataset.cmPrice) { const box = document.querySelector(`[data-cm="${t.dataset.cmPrice}"]`); if (box) box.checked = !!t.value.trim(); }
   }
@@ -421,11 +544,26 @@ window.LHCompany = (function () {
         const old = draft ? Store.brandsOf(me().id).find((x) => x.id === draft) : null;
         const was = old ? old.mrp : 0;
         const mrp = Number(digits($('cp-mrp').value).trim() || NaN);
-        Store.brandSave(draft, { name: $('cp-name').value, group: $('cp-group').value, unit: $('cp-unit').value, mrp, icon: f.elements['cp-icon'].value, pic: pic === undefined ? (old ? old.pic : '') : pic });
+        const cat = $('cp-cat').value;
+        Store.brandSave(draft, { name: $('cp-name').value, group: $('cp-group').value, cat: cat === '+' ? '' : cat, newCat: cat === '+' ? $('cp-newcat').value : undefined, unit: $('cp-unit').value, mrp, icon: f.elements['cp-icon'].value, pic: pic === undefined ? (old ? old.pic : '') : pic });
         U.closeSheet();
         U.toast(old && was !== mrp ? 'সংরক্ষিত, সব দোকানে নতুন দাম' : 'সংরক্ষিত');
         U.route(true);
       }, 'cp-err');
+    } else if (f.id === 'co-group') {
+      go(() => {
+        Store.groupSave(gDraft, { name: $('cgf-name').value, subs: [...f.querySelectorAll('[data-cg-sub]:checked')].map((x) => x.value) });
+        U.closeSheet();
+        U.toast('সংরক্ষিত');
+        U.route(true);
+      }, 'cgf-err');
+    } else if (f.id === 'co-cat') {
+      go(() => {
+        Store.catSave(cDraft, { group: $('ccf-group').value, name: $('ccf-name').value });
+        U.closeSheet();
+        U.toast('সংরক্ষিত');
+        U.route(true);
+      }, 'ccf-err');
     } else if (f.id === 'cm-form') {
       go(() => {
         Store.commonSave(cmDraft, { sub: $('cmf-sub').value, name: $('cmf-name').value, unit: $('cmf-unit').value, icon: f.elements['cmf-icon'].value });

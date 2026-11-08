@@ -75,7 +75,7 @@ window.LHStore = (function () {
   const RIDER = { id: 'r1', name: 'কামাল হোসেন', phone: '01911000001' };
   const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 
-  const VERSION = 17;
+  const VERSION = 18;
   const SEED_DELIVERY_FEE = 40;
   const SEED_DELIVERY_NEXT = 20;
   // v9: past the free distance each started kilometre costs more; a big item goes by van or pickup at its own rates
@@ -236,6 +236,8 @@ window.LHStore = (function () {
     d.nextNo = Math.max(d.nextNo, 10000020);
     // v17: companies with their brand products, LocalHaat's common list, and the demo shops' brand products
     if (!d.companies) brandSeed(d);
+    // v18: a company's own groups and categories; the demo companies get theirs
+    demoCats(d);
     d.v = VERSION;
     return d;
   }
@@ -405,12 +407,33 @@ window.LHStore = (function () {
     }));
     return out;
   }
+  // The demo companies' own groups and categories, and the category of each demo product. Only the demo companies and
+  // products, and only those that have none yet: a company's own groups and categories are never touched.
+  const DEMO_GROUPS = { co1: [['cg1', 'নুডলস ও পাস্তা', ['মুদি দোকান']]] };
+  const DEMO_CATS = {
+    co1: [['cc1', 'চাল, ডাল ও আটা', 'চাল', ['b2']], ['cc2', 'চাল, ডাল ও আটা', 'আটা ও ময়দা', ['b3']], ['cc3', 'মসলা', 'গুঁড়া মসলা', ['b4', 'b5']], ['cc4', 'নুডলস ও পাস্তা', 'ইনস্ট্যান্ট নুডলস', []]],
+    co2: [['cc5', 'সাবান ও প্রসাধনী', 'সাবান', ['b6']], ['cc6', 'সাবান ও প্রসাধনী', 'দাঁতের যত্ন', ['b8']], ['cc7', 'সাবান ও প্রসাধনী', 'চুলের যত্ন', ['b10']],
+      ['cc8', 'ঘর পরিষ্কার', 'কাপড় ধোয়া', ['b7']], ['cc9', 'ঘর পরিষ্কার', 'থালাবাসন ধোয়া', ['b9']]]
+  };
+  function demoCats(d) {
+    Object.keys(DEMO_CATS).forEach((id) => {
+      const c = (d.companies || []).find((x) => x.id === id);
+      if (!c || c.groups || c.cats) return;
+      c.groups = (DEMO_GROUPS[id] || []).map(([gid, name, subs]) => ({ id: gid, name, subs }));
+      c.cats = DEMO_CATS[id].map(([cid, group, name]) => ({ id: cid, group, name }));
+      DEMO_CATS[id].forEach(([cid, group, , ids]) => ids.forEach((bid) => {
+        const b = (d.brands || []).find((x) => x.id === bid && x.companyId === id);
+        if (b && !b.cat && b.group === group) b.cat = cid;
+      }));
+    });
+  }
   function brandSeed(d) {
     d.companies = seedCompanies();
     d.brands = seedBrands();
     d.common = d.common || seedCommon();
     stockBrands(d);
     d.brandSales = brandDemo(d);
+    demoCats(d);
   }
   function seed() {
     const shops = window.LH.shops.map((s) => {
@@ -1941,22 +1964,107 @@ window.LHStore = (function () {
     audit(ok ? 'company-ok' : 'company-no', { kind: 'company', id: c.id, name: c.name }, why);
     save();
   }
-  function checkBrand(v) {
+  /* ---------- a company's own groups, and its categories inside any group ---------- */
+  // LocalHaat's groups say which kinds of shop sell them (BRAND_GROUPS); a company's own group says it itself (subs).
+  // A category is the company's own, inside one group; a product may have one, or none.
+  const coGroups = (c) => c.groups || [];
+  const coCats = (c) => c.cats || [];
+  const groupNames = (c) => Object.keys(BRAND_GROUPS).concat(coGroups(c).map((g) => g.name));
+  const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
+  // the kinds of shop that sell a product's group
+  function groupSubs(b) {
+    if (Object.hasOwn(BRAND_GROUPS, b.group)) return BRAND_GROUPS[b.group];
+    const c = companyById(b.companyId);
+    const g = c && coGroups(c).find((x) => x.name === b.group);
+    return g ? g.subs : [];
+  }
+  // only kinds of shop: services do not sell brand products
+  const shopSubs = () => window.LH.cats.filter((x) => x.kind === 'shop').flatMap((x) => x.examples);
+  const newId = (pre, list) => pre + Date.now().toString(36) + list.length;
+  function groupSave(id, v) {
+    const c = companyOk();
+    const name = words(v.name).slice(0, 40);
+    if (name.length < 2) fail('গ্রুপের নাম দিন');
+    const all = shopSubs();
+    const subs = [...new Set(v.subs || [])].filter((x) => all.includes(x));
+    if (!subs.length) fail('কোন ধরনের দোকানে বিক্রি হবে, অন্তত একটি বেছে নিন');
+    const g = id ? coGroups(c).find((x) => x.id === id) || fail('গ্রুপ পাওয়া যায়নি') : null;
+    if (groupNames(c).some((x) => sameName(x, name) && !(g && x === g.name))) fail('এই নামে গ্রুপ আগেই আছে');
+    if (g) {
+      const old = g.name;
+      Object.assign(g, { name, subs });
+      // a new name: the group's categories and products follow
+      if (old !== name) { coCats(c).forEach((x) => { if (x.group === old) x.group = name; }); brandsOf(c.id).forEach((b) => { if (b.group === old) b.group = name; }); }
+    } else {
+      c.groups = coGroups(c);
+      c.groups.push({ id: newId('cg', c.groups), name, subs });
+    }
+    save();
+    return g || c.groups[c.groups.length - 1];
+  }
+  // only an empty group goes: no product in it
+  function groupDelete(id) {
+    const c = companyOk();
+    const g = coGroups(c).find((x) => x.id === id) || fail('গ্রুপ পাওয়া যায়নি');
+    if (brandsOf(c.id).some((b) => b.group === g.name)) fail('এই গ্রুপে পণ্য আছে। আগে পণ্যগুলো অন্য গ্রুপে নিন।');
+    c.groups = coGroups(c).filter((x) => x !== g);
+    c.cats = coCats(c).filter((x) => x.group !== g.name);
+    save();
+  }
+  function checkCat(c, group, name, id) {
+    if (!groupNames(c).includes(group || '')) fail('গ্রুপ বেছে নিন');
+    const n = words(name).slice(0, 40);
+    if (n.length < 2) fail('ক্যাটাগরির নাম দিন');
+    if (coCats(c).some((x) => x.group === group && sameName(x.name, n) && x.id !== id)) fail('এই গ্রুপে এই নামে ক্যাটাগরি আগেই আছে');
+    return n;
+  }
+  // a category keeps its group; only the name changes
+  function catSave(id, v) {
+    const c = companyOk();
+    if (id) {
+      const x = coCats(c).find((y) => y.id === id) || fail('ক্যাটাগরি পাওয়া যায়নি');
+      x.name = checkCat(c, x.group, v.name, id);
+      save();
+      return x;
+    }
+    const x = { id: newId('cc', coCats(c)), group: v.group, name: checkCat(c, v.group, v.name) };
+    c.cats = coCats(c).concat(x);
+    save();
+    return x;
+  }
+  function catDelete(id) {
+    const c = companyOk();
+    const x = coCats(c).find((y) => y.id === id) || fail('ক্যাটাগরি পাওয়া যায়নি');
+    if (brandsOf(c.id).some((b) => b.cat === id)) fail('এই ক্যাটাগরিতে পণ্য আছে। আগে পণ্যগুলো অন্য ক্যাটাগরিতে নিন।');
+    c.cats = coCats(c).filter((y) => y !== x);
+    save();
+  }
+  const catName = (b) => { const c = companyById(b.companyId); const x = c && b.cat && coCats(c).find((y) => y.id === b.cat); return x ? x.name : ''; };
+  function checkBrand(v, c) {
     const name = words(v.name).slice(0, 80);
     if (name.length < 2) fail('পণ্যের নাম দিন');
-    if (!Object.hasOwn(BRAND_GROUPS, v.group || '')) fail('গ্রুপ বেছে নিন');
+    if (!groupNames(c).includes(v.group || '')) fail('গ্রুপ বেছে নিন');
+    // a category is optional; a new one may be written in the product form itself
+    if (v.cat && !coCats(c).some((x) => x.id === v.cat && x.group === v.group)) fail('ক্যাটাগরি বেছে নিন');
+    if (v.newCat !== undefined) checkCat(c, v.group, v.newCat);
     const unit = words(v.unit).slice(0, 30);
     if (!unit) fail('পরিমাণ দিন, যেমন ১ লিটার');
     const mrp = Number(v.mrp);
     if (!Number.isInteger(mrp) || mrp < 1 || mrp > 1e6) fail('MRP টাকায়, পূর্ণ সংখ্যায় দিন');
     if (v.pic && !BRAND_PIC.test(v.pic)) fail('ছবিটি নেওয়া যায়নি, আবার দিন');
-    return { name, group: v.group, unit, mrp, pic: v.pic || '', icon: v.icon || '📦' };
+    return { name, group: v.group, cat: v.cat || '', unit, mrp, pic: v.pic || '', icon: v.icon || '📦' };
   }
   // a new product, or a change: every shop that stocks it follows at once
   function brandSave(id, v) {
     const c = companyOk();
-    const x = checkBrand(v);
+    const x = checkBrand(v, c);
     const at = new Date().toISOString();
+    // checked above with the rest, so a new category is made only with its product
+    if (v.newCat !== undefined) {
+      const nc = { id: newId('cc', coCats(c)), group: x.group, name: checkCat(c, x.group, v.newCat) };
+      c.cats = coCats(c).concat(nc);
+      x.cat = nc.id;
+    }
     let b;
     if (id) {
       b = data.brands.find((y) => y.id === id && y.companyId === c.id) || fail('পণ্য পাওয়া যায়নি');
@@ -1981,7 +2089,7 @@ window.LHStore = (function () {
   // the brand products a shop can pick; those of its own sub-categories first
   function brandChoices(s, sub) {
     const subs = sub ? [sub] : subsOfShop(s);
-    return data.brands.filter(brandLive).map((b) => ({ b, company: companyById(b.companyId).name, rec: (BRAND_GROUPS[b.group] || []).some((x) => subs.includes(x)), has: !!s && hasBrand(s, b.id) }))
+    return data.brands.filter(brandLive).map((b) => ({ b, company: companyById(b.companyId).name, rec: groupSubs(b).some((x) => subs.includes(x)), has: !!s && hasBrand(s, b.id) }))
       .sort((x, y) => y.rec - x.rec || x.b.group.localeCompare(y.b.group, 'bn') || x.b.name.localeCompare(y.b.name, 'bn'));
   }
   function addBrands(shopId, ids) {
@@ -3131,7 +3239,7 @@ window.LHStore = (function () {
     proofOf, teamProofSeen,
     isPharmacy, rxAsk, rxPics, rxQuote, rxTotal, rxConfirm,
     RET_WHY, returnDays, canReturn, retAsk, retRider, retCheck, retCashPaid, riderDoorReturn,
-    BRAND_GROUPS, companyById, companyMe, brandLive, companySignup, companyLogin, companyResend, companyVerify, companyLogout, companyAgain, companyDecide, brandSave, brandsOf,
+    BRAND_GROUPS, groupNames, groupSubs, shopSubs, groupSave, groupDelete, catSave, catDelete, catName, companyById, companyMe, brandLive, companySignup, companyLogin, companyResend, companyVerify, companyLogout, companyAgain, companyDecide, brandSave, brandsOf,
     brandChoices, addBrands, commonFor, addCommon, commonSave, commonDelete, companyReport, teamCompanyReport,
     session(role) { return data.accounts.find((a) => a.id === data.sessions[role]) || null; },
     setSession(role, acc) { if (acc) data.sessions[role] = acc.id; else delete data.sessions[role]; save(); }
