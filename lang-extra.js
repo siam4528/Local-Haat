@@ -1875,5 +1875,10 @@ Object.assign(window.LH_LANG.en, {
   'আসল সাইটে এখানে ব্যাংকের নিরাপদ পেমেন্ট পাতা খুলবে। কার্ডের নম্বর সেখানেই দেবেন। বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "On the real site the bank's secure payment page opens here. Give the card number there. Visa and Mastercard cards issued abroad work too.",
   'বিদেশে ইস্যু করা Visa ও Mastercard কার্ডও চলবে।': "Visa and Mastercard cards issued abroad work too.",
   /* only the super admin approves companies */
-  'সুপার অ্যাডমিন অনুমোদন দেবেন': "The super admin will approve"
+  'সুপার অ্যাডমিন অনুমোদন দেবেন': "The super admin will approve",
+  /* a company logs in with a code every time */
+  'আপনার মোবাইল বা ইমেইলে পাঠানো ৬ সংখ্যার কোড দিন। কোড ৫ মিনিট কাজ করবে।': "Enter the 6-digit code sent to your mobile or email. The code works for 5 minutes.",
+  'এটি ডেমো। আসল সাইটে কোড এসএমএস বা ইমেইলে যাবে, পর্দায় দেখাবে না।': "This is a demo. On the real site the code goes by SMS or email and is not shown on the screen.",
+  'যাচাই করে লগইন করুন': "Verify and log in",
+  'নতুন কোড পাঠানো হয়েছে': "A new code has been sent"
 });

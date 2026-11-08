@@ -1887,15 +1887,43 @@ window.LHStore = (function () {
     save();
     return c;
   }
+  // A company logs in in two steps every time: the password, then a six-digit code sent to its phone or email.
+  // The code lasts five minutes; three wrong codes, or a late one, start again from the password.
+  const CO_CODE_MIN = 5;
+  const CO_CODE_TRIES = 3;
+  const coCode = () => String(Math.floor(100000 + Math.random() * 900000));
   function companyLogin(contact, pw) {
     const c = String(contact || '').trim().toLowerCase();
     const x = data.companies.find((y) => y.contact === c);
     if (!x || x.pw !== hash(String(pw || ''))) fail('মোবাইল / ইমেইল বা পাসওয়ার্ড ভুল');
+    delete data.sessions.company;
+    data.sessions.companyPending = { id: x.id, code: coCode(), until: new Date(Date.now() + CO_CODE_MIN * 6e4).toISOString(), tries: 0 };
+    save();
+    return { code: data.sessions.companyPending.code };
+  }
+  function companyResend() {
+    const p = data.sessions.companyPending || fail('আবার মোবাইল ও পাসওয়ার্ড দিন');
+    Object.assign(p, { code: coCode(), until: new Date(Date.now() + CO_CODE_MIN * 6e4).toISOString(), tries: 0 });
+    save();
+    return { code: p.code };
+  }
+  function companyVerify(code) {
+    const p = data.sessions.companyPending || fail('আবার মোবাইল ও পাসওয়ার্ড দিন');
+    if (new Date(p.until) < new Date()) { delete data.sessions.companyPending; save(); fail('কোডের সময় শেষ। আবার মোবাইল ও পাসওয়ার্ড দিন।'); }
+    if (String(code || '').trim() !== p.code) {
+      p.tries++;
+      if (p.tries >= CO_CODE_TRIES) { delete data.sessions.companyPending; save(); fail('তিনবার ভুল কোড। আবার মোবাইল ও পাসওয়ার্ড দিন।'); }
+      save();
+      fail('কোড মেলেনি');
+    }
+    const x = companyById(p.id);
+    delete data.sessions.companyPending;
+    if (!x) { save(); fail('আবার মোবাইল ও পাসওয়ার্ড দিন'); }
     data.sessions.company = x.id;
     save();
     return x;
   }
-  function companyLogout() { delete data.sessions.company; save(); }
+  function companyLogout() { delete data.sessions.company; delete data.sessions.companyPending; save(); }
   // a company the team refused fixes what it was told and asks again
   function companyAgain(about) {
     const c = companyMe() || fail('কোম্পানি হিসেবে লগইন করুন');
@@ -3103,7 +3131,7 @@ window.LHStore = (function () {
     proofOf, teamProofSeen,
     isPharmacy, rxAsk, rxPics, rxQuote, rxTotal, rxConfirm,
     RET_WHY, returnDays, canReturn, retAsk, retRider, retCheck, retCashPaid, riderDoorReturn,
-    BRAND_GROUPS, companyById, companyMe, brandLive, companySignup, companyLogin, companyLogout, companyAgain, companyDecide, brandSave, brandsOf,
+    BRAND_GROUPS, companyById, companyMe, brandLive, companySignup, companyLogin, companyResend, companyVerify, companyLogout, companyAgain, companyDecide, brandSave, brandsOf,
     brandChoices, addBrands, commonFor, addCommon, commonSave, commonDelete, companyReport, teamCompanyReport,
     session(role) { return data.accounts.find((a) => a.id === data.sessions[role]) || null; },
     setSession(role, acc) { if (acc) data.sessions[role] = acc.id; else delete data.sessions[role]; save(); }

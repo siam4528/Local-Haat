@@ -48,7 +48,23 @@ window.LHCompany = (function () {
     return null;
   }
   const logout = () => '<button type="button" class="link" data-co="logout">লগ আউট</button>';
+  // the second step of every login: the code sent to the company's phone or email
+  function codePage(pend) {
+    return `<div class="co-wrap"><section class="panel co-card">
+      <h1 class="page-h">দুই ধাপের যাচাই</h1>
+      <form id="co-code" novalidate>
+        <p class="meta">আপনার মোবাইল বা ইমেইলে পাঠানো ৬ সংখ্যার কোড দিন। কোড ৫ মিনিট কাজ করবে।</p>
+        <div class="demo-code" role="status"><b><span>ডেমো কোড</span>: <span translate="no">${U.bn(pend.code)}</span></b><small>এটি ডেমো। আসল সাইটে কোড এসএমএস বা ইমেইলে যাবে, পর্দায় দেখাবে না।</small></div>
+        <label class="field"><span>কোড</span><input id="coc-code" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" class="code-in"><small class="err" id="coc-err" role="alert"></small></label>
+        <button type="submit" class="btn block">যাচাই করে লগইন করুন</button>
+        <p class="linkrow center"><button type="button" class="inline" data-co="code-again">আবার পাঠান</button></p>
+        <button type="button" class="link" data-co="code-restart">আবার শুরু করুন</button>
+      </form>
+    </section></div>`;
+  }
   function loginPage() {
+    const pend = D().sessions.companyPending;
+    if (pend) return codePage(pend);
     return `<div class="co-wrap"><section class="panel co-card">
       <h1 class="page-h">🏭 কোম্পানি প্যানেল</h1>
       <p class="meta gap">যেসব কোম্পানি নিজের ব্র্যান্ডের পণ্য বানায় বা আমদানি করে, তারা এখানে পণ্য ও MRP দেয়। দোকান সেই পণ্য MRP-তে বিক্রি করে।</p>
@@ -56,7 +72,7 @@ window.LHCompany = (function () {
         <label class="field"><span>মোবাইল নম্বর বা ইমেইল</span><input id="col-contact" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
         <label class="field"><span>পাসওয়ার্ড</span><input id="col-pw" type="password" autocomplete="current-password" maxlength="100"></label>
         <small class="err" id="col-err" role="alert"></small>
-        <button type="submit" class="btn block">লগইন</button>
+        <button type="submit" class="btn block">পরের ধাপ</button>
         <div class="demo-box"><span>প্রিভিউ ডেমো: <span translate="no">${U.bn('01611000001')}</span> / demo1234। অনুমোদনের অপেক্ষায়: <span translate="no">${U.bn('01611000003')}</span></span>
           <button type="button" class="inline" data-co="demo-fill">পূরণ করুন</button></div>
       </form>
@@ -298,7 +314,10 @@ window.LHCompany = (function () {
     const d = el.dataset;
     try {
       switch (d.co) {
-        case 'logout': Store.companyLogout(); location.hash = '#/company'; break;
+        // the products page is #/company itself, so the hash may not change: draw the login page here
+        case 'logout': Store.companyLogout(); otp = null; draft = null; month = ''; U.toast('লগ আউট হয়েছে'); location.hash = '#/company'; U.route(); break;
+        case 'code-again': Store.companyResend(); U.toast('নতুন কোড পাঠানো হয়েছে'); U.route(true); $('coc-code').focus(); break;
+        case 'code-restart': Store.companyLogout(); U.route(true); break;
         case 'demo-fill': $('col-contact').value = '01611000001'; $('col-pw').value = 'demo1234'; break;
         case 'otp-send': {
           const c = normContact($('cos-contact').value);
@@ -371,7 +390,19 @@ window.LHCompany = (function () {
   function onSubmit(e) {
     const f = e.target;
     const go = (fn, err) => { e.preventDefault(); try { fn(); } catch (ex) { $(err).textContent = ex.message; } };
-    if (f.id === 'co-login') go(() => { Store.companyLogin(normContact($('col-contact').value), $('col-pw').value); U.toast('স্বাগতম'); location.hash = '#/company'; U.route(); }, 'col-err');
+    if (f.id === 'co-login') go(() => { Store.companyLogin(normContact($('col-contact').value), $('col-pw').value); location.hash = '#/company'; U.route(); $('coc-code').focus(); }, 'col-err');
+    else if (f.id === 'co-code') {
+      e.preventDefault();
+      try {
+        Store.companyVerify(digits($('coc-code').value).trim());
+        U.toast('স্বাগতম');
+        location.hash = '#/company';
+        U.route();
+      } catch (ex) {
+        // three wrong codes or a late one: back to the password
+        if (D().sessions.companyPending) $('coc-err').textContent = ex.message; else { U.toast(ex.message); U.route(true); }
+      }
+    }
     else if (f.id === 'co-signup') {
       go(() => {
         const contact = normContact($('cos-contact').value);
