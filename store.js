@@ -2150,9 +2150,16 @@ window.LHStore = (function () {
   }
   // A company's sales: the brand lines of finished orders (what the buyer kept), and the sample rows. No buyer in it.
   // withShops: the team's view also names the shops that stock each product.
-  function brandReport(companyId, month, withShops) {
+  // The filter (or just a month, as before): { month, group, cat, div, zila, area }. The products side (group, category;
+  // cat '-' is "no category") and the place side (division, district, upazila) both narrow every total.
+  // tree: every place where the company sold or a shop stocks its products, for the place filter's choices.
+  function brandReport(companyId, filter, withShops) {
+    const f = filter && typeof filter === 'object' ? filter : { month: filter || '' };
     const mine = brandsOf(companyId);
     const ids = new Set(mine.map((b) => b.id));
+    const placeOf = (s) => ({ div: divOfZila(s.zila), zila: s.zila || '', area: s.area || '' });
+    const inPlace = (pl) => (!f.div || pl.div === f.div) && (!f.zila || pl.zila === f.zila) && (!f.area || pl.area === f.area);
+    const picked = (b) => (!f.group || b.group === f.group) && (!f.cat || (f.cat === '-' ? !b.cat : b.cat === f.cat));
     const rows = [];
     data.orders.forEach((o) => {
       if (!isFinished(o)) return;
@@ -2161,27 +2168,34 @@ window.LHStore = (function () {
       netOf(o).lines.forEach((l) => { if (l.brand && ids.has(l.brand)) rows.push({ b: l.brand, s: o.shopId, d: day, q: l.qty, v: l.qty * l.price }); });
     });
     (data.brandSales || []).forEach((r) => { if (ids.has(r.b)) rows.push({ b: r.b, s: r.s, d: r.d, q: r.q, v: r.q * r.p, demo: true }); });
-    const list = rows.filter((r) => !month || r.d.startsWith(month));
+    rows.forEach((r) => { r.pl = placeOf(shopById(r.s) || {}); });
+    const stocking = data.shops.filter((s) => shopLive(s) && mine.some((b) => hasBrand(s, b.id)));
+    const tree = {};
+    rows.map((r) => r.pl).concat(stocking.map(placeOf)).forEach((pl) => { if (pl.zila) tree[[pl.div, pl.zila, pl.area].join('|')] = pl; });
+    const chosen = new Set(mine.filter(picked).map((b) => b.id));
+    const list = rows.filter((r) => (!f.month || r.d.startsWith(f.month)) && chosen.has(r.b) && inPlace(r.pl));
     const sum = (rs, k) => rs.reduce((a, r) => a + r[k], 0);
-    const products = mine.map((b) => {
+    const products = mine.filter(picked).map((b) => {
       const rs = list.filter((r) => r.b === b.id);
-      const shops = data.shops.filter((s) => shopLive(s) && hasBrand(s, b.id));
-      const out = { id: b.id, name: b.name, unit: b.unit, mrp: b.mrp, icon: b.icon, pic: b.pic, group: b.group, qty: sum(rs, 'q'), sales: sum(rs, 'v'), shops: shops.length, inStock: shops.filter((s) => s.items.some((it) => it.brand === b.id && it.available)).length };
+      const shops = data.shops.filter((s) => shopLive(s) && hasBrand(s, b.id) && inPlace(placeOf(s)));
+      const out = { id: b.id, name: b.name, unit: b.unit, mrp: b.mrp, icon: b.icon, pic: b.pic, group: b.group, cat: b.cat || '', qty: sum(rs, 'q'), sales: sum(rs, 'v'), shops: shops.length, inStock: shops.filter((s) => s.items.some((it) => it.brand === b.id && it.available)).length };
       if (withShops) out.shopList = shops.map((s) => ({ id: s.id, name: s.name, zila: s.zila, area: s.area, inStock: s.items.some((it) => it.brand === b.id && it.available) }));
       return out;
     }).sort((x, y) => y.sales - x.sales);
     const places = {};
     list.forEach((r) => {
-      const s = shopById(r.s) || {};
-      const key = [divOfZila(s.zila), s.zila || '', s.area || ''].join('|');
-      const p = places[key] || (places[key] = { div: divOfZila(s.zila), zila: s.zila || '', area: s.area || '', qty: 0, sales: 0 });
+      const key = [r.pl.div, r.pl.zila, r.pl.area].join('|');
+      const p = places[key] || (places[key] = Object.assign({ qty: 0, sales: 0 }, r.pl));
       p.qty += r.q;
       p.sales += r.v;
     });
-    return { month: month || '', sales: sum(list, 'v'), qty: sum(list, 'q'), products, places: Object.values(places).sort((x, y) => y.sales - x.sales), demo: list.some((r) => r.demo) };
+    return {
+      month: f.month || '', filter: f, sales: sum(list, 'v'), qty: sum(list, 'q'), products, places: Object.values(places).sort((x, y) => y.sales - x.sales),
+      tree: Object.values(tree), groups: [...new Set(mine.map((b) => b.group))], demo: list.some((r) => r.demo)
+    };
   }
-  const companyReport = (month) => brandReport(companyOk().id, month, false);
-  const teamCompanyReport = (id, month) => { need('company'); companyById(id) || fail('কোম্পানি পাওয়া যায়নি'); return brandReport(id, month, true); };
+  const companyReport = (filter) => brandReport(companyOk().id, filter, false);
+  const teamCompanyReport = (id, filter) => { need('company'); companyById(id) || fail('কোম্পানি পাওয়া যায়নি'); return brandReport(id, filter, true); };
   /* ---------- ratings: only a customer's own finished order can rate, once ---------- */
   const isFinished = (o) => o.status === 'delivered' || o.status === 'completed';
   /* ---------- medicines by prescription ---------- */

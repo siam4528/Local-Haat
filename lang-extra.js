@@ -1924,5 +1924,13 @@ Object.assign(window.LH_LANG.en, {
   'ক্যাটাগরির নাম দিন': "Enter the category name",
   'এই গ্রুপে এই নামে ক্যাটাগরি আগেই আছে': "This group already has a category by this name",
   'ক্যাটাগরি পাওয়া যায়নি': "Category not found",
-  'এই ক্যাটাগরিতে পণ্য আছে। আগে পণ্যগুলো অন্য ক্যাটাগরিতে নিন।': "This category has products. Move them to another category first."
+  'এই ক্যাটাগরিতে পণ্য আছে। আগে পণ্যগুলো অন্য ক্যাটাগরিতে নিন।': "This category has products. Move them to another category first.",
+  /* the company report's two sides of filters */
+  'সব গ্রুপ': "All groups",
+  'পণ্যের নাম খুঁজুন': "Search product names",
+  'জেলা বা উপজেলার নাম খুঁজুন': "Search district or upazila names",
+  'এই ফিল্টারে বিক্রি নেই': "No sales with these filters",
+  'রিপোর্টের দিক': "Report side",
+  'এই ফিল্টারে কোনো পণ্য নেই': "No products with these filters",
+  'এই নামে কোনো এলাকা নেই': "No place by this name"
 });

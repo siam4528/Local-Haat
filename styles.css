@@ -1348,6 +1348,20 @@ body[data-page="map"] .top-in > .search { display: none; }
 .cg-kind > b { display: block; margin-bottom: 4px; font-size: 13.5px; color: var(--muted); }
 .cg-kind .chk { padding: 4px 0; }
 .bp-hint { margin: 4px 0 10px; }
+/* round 2: the company report, the products side and the place side */
+.rep-seg button { display: grid; place-items: center; min-height: 44px; padding: 0 4px; border: 0; background: none; border-radius: 10px; font: inherit; font-weight: 600; font-size: 15px; color: var(--muted); cursor: pointer; }
+.rep-seg button.on { background: var(--card); color: var(--brand); box-shadow: 0 1px 5px rgba(60, 30, 15, .13); }
+.rep-on-prod .rep-place, .rep-on-place .rep-prod { display: none; }
+.rep-split .page-h.gap-t { margin-top: 4px; }
+.rep-filter { padding: 4px 14px 14px; margin-bottom: 12px; }
+.rep-filter select { width: 100%; }
+.rep-filter select:disabled { opacity: .55; }
+.rep-clear { margin: 0 0 10px; }
+@media (min-width: 860px) {
+  .rep-seg { display: none; }
+  .rep-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .rep-on-prod .rep-place, .rep-on-place .rep-prod { display: block; }
+}
 @media (max-width: 420px) {
   .side-pick a { padding: 0 7px; }
   .strip { gap: 2px; padding: 4px 4px; font-size: 12.5px; }

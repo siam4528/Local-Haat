@@ -23,6 +23,17 @@ window.LHCompany = (function () {
   const picked = new Set(); // brand products ticked in a shop's picker
   const suPicked = new Set(); // ticked at an agent's sign up
   let cmDraft = null;
+  // the report's filters: the products side (group, category) and the place side (division, district, upazila), and
+  // the two name searches; they start again when another company's report opens
+  const RF0 = () => ({ group: '', cat: '', div: '', zila: '', area: '' });
+  let rf = RF0();
+  let rfQ = '';
+  let rpQ = '';
+  let rfKey = '';
+  let repSide = 'prod'; // on a phone one side at a time
+  const rfReset = () => { rf = RF0(); rfQ = ''; rpQ = ''; repSide = 'prod'; };
+  const rfFor = (key) => { if (key !== rfKey) { rfKey = key; rfReset(); } };
+  let lastTree = []; // the places of the report on the screen, for a district's division
   let gDraft = null; // the company's own group being edited
   let cDraft = null; // the category being edited
 
@@ -252,40 +263,91 @@ window.LHCompany = (function () {
     const chip = (m, label) => `<button type="button" class="chip ${month === m ? 'on' : ''}" aria-pressed="${month === m}" ${attr}="${m}">${label}</button>`;
     return `<div class="chips" role="group" aria-label="সময়">${chip('', 'শেষ ৩ মাস')}${Store.salesMonths(MONTHS).map((m) => chip(m, monthName(m))).join('')}</div>`;
   }
+  // a name search keeps a row if any of its words match: the Bangla name, and the name as shown (English in English)
+  const finds = (q, text) => !q || text.includes(q);
+  const findText = (...names) => U.esc(names.filter(Boolean).map((x) => `${x} ${window.LHI18n.geoText(x)}`).join(' ').toLowerCase());
   function placeList(title, rows) {
     const top = Math.max(1, ...rows.map((r) => r.sales));
-    return `<section class="panel co-place"><h2 class="tight">${title}</h2>${rows.length ? `<ul class="co-bars">${rows.map((r) => `<li><span class="co-bar-name">${r.label}</span>
+    return `<section class="panel co-place"><h2 class="tight">${title}</h2>${rows.length ? `<ul class="co-bars">${rows.map((r) => `<li data-find="${r.find}" ${finds(rpQ, r.find) ? '' : 'hidden'}><span class="co-bar-name">${r.label}</span>
         <span class="co-bar"><i style="width:${Math.max(4, Math.round((r.sales * 100) / top))}%"></i></span><b>${U.tk(r.sales)}</b><small><span>বিক্রি হয়েছে</span>: ${U.bn(r.qty)}</small></li>`).join('')}</ul>` : '<p class="meta">এই সময়ে বিক্রি নেই</p>'}</section>`;
   }
   // division, district and upazila, each with its own total
   function places(r) {
-    const by = (key, label) => {
+    const by = (key, label, find) => {
       const out = {};
-      r.places.forEach((p) => { const k = key(p); const x = out[k] || (out[k] = { label: label(p), qty: 0, sales: 0 }); x.qty += p.qty; x.sales += p.sales; });
+      r.places.forEach((p) => { const k = key(p); const x = out[k] || (out[k] = { label: label(p), find: find(p), qty: 0, sales: 0 }); x.qty += p.qty; x.sales += p.sales; });
       return Object.values(out).sort((a, b) => b.sales - a.sales);
     };
-    return placeList('বিভাগ অনুযায়ী', by((p) => p.div, (p) => (p.div ? `${U.geo(p.div)} <span>বিভাগ</span>` : '<span>জানা নেই</span>'))) +
-      placeList('জেলা অনুযায়ী', by((p) => p.zila, (p) => (p.zila ? U.geo(p.zila) : '<span>জানা নেই</span>'))) +
-      placeList('উপজেলা / থানা অনুযায়ী', by((p) => p.zila + '|' + p.area, (p) => `${U.geo(p.area)}${p.zila ? ', ' + U.geo(p.zila) : ''}`));
+    return placeList('বিভাগ অনুযায়ী', by((p) => p.div, (p) => (p.div ? `${U.geo(p.div)} <span>বিভাগ</span>` : '<span>জানা নেই</span>'), (p) => findText(p.div))) +
+      placeList('জেলা অনুযায়ী', by((p) => p.zila, (p) => (p.zila ? U.geo(p.zila) : '<span>জানা নেই</span>'), (p) => findText(p.zila))) +
+      placeList('উপজেলা / থানা অনুযায়ী', by((p) => p.zila + '|' + p.area, (p) => `${U.geo(p.area)}${p.zila ? ', ' + U.geo(p.zila) : ''}`, (p) => findText(p.area, p.zila)));
   }
-  function reportHtml(r, forTeam) {
+  const uniq = (list) => [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'bn'));
+  const opt = (v, label, on) => `<option value="${U.esc(v)}" ${on ? 'selected' : ''}>${label}</option>`;
+  // the products side: group, then the company's categories in it, and a name search
+  function prodFilter(r, c) {
+    const cats = rf.group ? (c.cats || []).filter((x) => x.group === rf.group) : [];
+    return `<div class="panel rep-filter">
+        <div class="row2">
+          <label class="field"><span>গ্রুপ</span><select id="rf-group" data-rf="group">${opt('', 'সব গ্রুপ', !rf.group)}${Store.groupNames(c).filter((g) => r.groups.includes(g)).map((g) => opt(g, gname(g), rf.group === g)).join('')}</select></label>
+          <label class="field"><span>ক্যাটাগরি</span><select id="rf-cat" data-rf="cat" ${rf.group ? '' : 'disabled'}>${opt('', 'সব ক্যাটাগরি', !rf.cat)}${cats.map((x) => opt(x.id, U.ud(x.name), rf.cat === x.id)).join('')}${rf.group ? opt('-', 'ক্যাটাগরি ছাড়া', rf.cat === '-') : ''}</select></label>
+        </div>
+        <label class="field"><span class="sr">পণ্যের নাম খুঁজুন</span><input id="rf-q" type="search" placeholder="পণ্যের নাম খুঁজুন" value="${U.esc(rfQ)}" autocomplete="off"></label>
+      </div>`;
+  }
+  // the place side: division, then district, then upazila, and a name search
+  function placeFilter(r) {
+    const t = r.tree;
+    const divs = uniq(t.map((x) => x.div));
+    const zilas = uniq(t.filter((x) => !rf.div || x.div === rf.div).map((x) => x.zila));
+    const areas = rf.zila ? uniq(t.filter((x) => x.zila === rf.zila).map((x) => x.area)) : [];
+    return `<div class="panel rep-filter">
+        <label class="field"><span>বিভাগ</span><select id="rf-div" data-rf="div">${opt('', 'সব বিভাগ', !rf.div)}${divs.map((x) => opt(x, U.geo(x), rf.div === x)).join('')}</select></label>
+        <div class="row2">
+          <label class="field"><span>জেলা</span><select id="rf-zila" data-rf="zila">${opt('', 'সব জেলা', !rf.zila)}${zilas.map((x) => opt(x, U.geo(x), rf.zila === x)).join('')}</select></label>
+          <label class="field"><span>উপজেলা / থানা</span><select id="rf-area" data-rf="area" ${rf.zila ? '' : 'disabled'}>${opt('', 'সব উপজেলা', !rf.area)}${areas.map((x) => opt(x, U.geo(x), rf.area === x)).join('')}</select></label>
+        </div>
+        <label class="field"><span class="sr">জেলা বা উপজেলার নাম খুঁজুন</span><input id="rp-q" type="search" placeholder="জেলা বা উপজেলার নাম খুঁজুন" value="${U.esc(rpQ)}" autocomplete="off"></label>
+      </div>`;
+  }
+  const rfOn = () => Object.values(rf).some(Boolean) || !!rfQ || !!rpQ;
+  // the report: the totals follow both sides' filters; on a wide screen the two sides stand side by side
+  function reportHtml(r, forTeam, c) {
+    lastTree = r.tree;
+    const side = (k, label) => `<button type="button" class="${repSide === k ? 'on' : ''}" aria-pressed="${repSide === k}" data-co="rep-side" data-id="${k}">${label}</button>`;
+    const prodFind = (p) => U.esc((p.name + ' ' + p.unit).toLowerCase());
     return `${monthChips(forTeam ? 'data-co-tmonth' : 'data-co-month')}
       <div class="stats rep-stats">${stat(U.tk(r.sales), 'মোট বিক্রি')}${stat(U.bn(r.qty), 'কয়টি বিক্রি হয়েছে')}${stat(U.bn(r.products.length), 'পণ্য')}${stat(U.bn(r.products.filter((p) => p.shops).length), 'দোকানে আছে এমন পণ্য')}</div>
+      ${rfOn() ? '<div class="rep-clear"><button type="button" class="btn ghost sm" data-co="rf-clear"><span aria-hidden="true">✕</span> ফিল্টার মুছুন</button></div>' : ''}
+      ${!r.sales && Object.values(rf).some(Boolean) ? '<p class="note rep-empty">এই ফিল্টারে বিক্রি নেই</p>' : ''}
       ${r.demo ? '<p class="meta">ডেমো: আগের দিনগুলোর বিক্রি প্রোটোটাইপের নমুনা তথ্য, নতুন অর্ডার তার সাথে যোগ হয়।</p>' : ''}
       <p class="meta">🔒 ক্রেতার নাম, ফোন বা ঠিকানা এই রিপোর্টে নেই।${forTeam ? '' : ' দোকানের নাম লোকালহাট টিম দেখে; আপনি দেখবেন কয়টি দোকানে আছে।'}</p>
+      <div class="seg rep-seg" role="group" aria-label="রিপোর্টের দিক">${side('prod', 'পণ্য অনুযায়ী')}${side('place', 'এলাকা অনুযায়ী')}</div>
+      <div class="rep-split rep-on-${repSide}">
+      <section class="rep-col rep-prod">
       <h2 class="page-h gap-t">পণ্য অনুযায়ী</h2>
-      ${r.products.length ? `<ul class="items">${r.products.map((p) => `<li class="item co-rep" id="cr-${p.id}">${thumb(p)}
+      ${prodFilter(r, c)}
+      ${r.products.length ? `<ul class="items" id="rep-prods">${r.products.map((p) => `<li class="item co-rep" id="cr-${p.id}" data-find="${prodFind(p)}" ${finds(rfQ, prodFind(p)) ? '' : 'hidden'}>${thumb(p)}
           <div class="item-txt"><b>${U.ud(p.name)}</b><small>${U.ud(p.unit)} · MRP ${U.tk(p.mrp)}</small>
             <small><span>বিক্রি হয়েছে</span>: ${U.bn(p.qty)} · ${U.tk(p.sales)}</small>
             <small><span>দোকান</span>: ${U.bn(p.shops)} · <span>স্টকে আছে</span>: ${U.bn(p.inStock)}</small>
             ${forTeam && p.shopList.length ? `<details class="co-shops"><summary>দোকানগুলো</summary><ul>${p.shopList.map((s) => `<li><a href="#/shop/${s.id}">${U.ud(s.name)}</a> <small>${U.geo(s.area)}, ${U.geo(s.zila)}</small>${s.inStock ? '' : ' <span class="tag bad">স্টক নেই</span>'}</li>`).join('')}</ul></details>` : ''}
-          </div></li>`).join('')}</ul>` : '<p class="meta">এখনো কোনো পণ্য নেই</p>'}
+          </div></li>`).join('')}</ul>` : `<p class="meta">${Object.values(rf).some(Boolean) ? 'এই ফিল্টারে কোনো পণ্য নেই' : 'এখনো কোনো পণ্য নেই'}</p>`}
+      <p class="meta" id="rf-none" ${rfQ && r.products.length && !r.products.some((p) => finds(rfQ, prodFind(p))) ? '' : 'hidden'}>এই নামে কোনো পণ্য নেই</p>
+      </section>
+      <section class="rep-col rep-place">
       <h2 class="page-h gap-t">এলাকা অনুযায়ী</h2>
-      ${places(r)}`;
+      ${placeFilter(r)}
+      ${places(r)}
+      <p class="meta" id="rp-none" ${r.places.length && rpQ && !r.places.some((p) => finds(rpQ, findText(p.area, p.zila, p.div))) ? '' : 'hidden'}>এই নামে কোনো এলাকা নেই</p>
+      </section>
+      </div>`;
   }
+  const filterNow = () => Object.assign({ month }, rf);
   function reportPage() {
-    const r = Store.companyReport(month);
-    return `<h1 class="page-h">📊 বিক্রির রিপোর্ট</h1><p class="meta gap">লোকালহাটে সম্পন্ন অর্ডার থেকে, ফেরত দেওয়া বাদে</p>${reportHtml(r, false)}${logout()}`;
+    rfFor('co:' + me().id);
+    const r = Store.companyReport(filterNow());
+    return `<h1 class="page-h">📊 বিক্রির রিপোর্ট</h1><p class="meta gap">লোকালহাটে সম্পন্ন অর্ডার থেকে, ফেরত দেওয়া বাদে</p>${reportHtml(r, false, me())}${logout()}`;
   }
 
   /* ---------- the team: approving companies, and the common list ---------- */
@@ -310,9 +372,10 @@ window.LHCompany = (function () {
   function adminCompany(id) {
     const c = Store.companyById(id);
     if (!c) return null;
-    const r = Store.teamCompanyReport(id, month);
+    rfFor('team:' + id);
+    const r = Store.teamCompanyReport(id, filterNow());
     return `<a class="back" href="#/admin/companies">‹ সব কোম্পানি</a><h1 class="page-h">📊 ${U.ud(c.name)}</h1>
-      <p class="meta gap">শুধু লোকালহাট টিম দোকানের নাম দেখে; কোম্পানি দেখে কয়টি দোকানে আছে।</p>${reportHtml(r, true)}`;
+      <p class="meta gap">শুধু লোকালহাট টিম দোকানের নাম দেখে; কোম্পানি দেখে কয়টি দোকানে আছে।</p>${reportHtml(r, true, c)}`;
   }
   const allSubs = () => [...new Set(window.LH.cats.flatMap((c) => c.examples))];
   function adminCommon() {
@@ -412,7 +475,9 @@ window.LHCompany = (function () {
     try {
       switch (d.co) {
         // the products page is #/company itself, so the hash may not change: draw the login page here
-        case 'logout': Store.companyLogout(); otp = null; draft = null; month = ''; U.toast('লগ আউট হয়েছে'); location.hash = '#/company'; U.route(); break;
+        case 'logout': Store.companyLogout(); otp = null; draft = null; month = ''; rfKey = ''; rfReset(); U.toast('লগ আউট হয়েছে'); location.hash = '#/company'; U.route(); break;
+        case 'rep-side': repSide = d.id === 'place' ? 'place' : 'prod'; U.route(true); break;
+        case 'rf-clear': { const side = repSide; rfReset(); repSide = side; U.route(true); break; }
         case 'code-again': Store.companyResend(); U.toast('নতুন কোড পাঠানো হয়েছে'); U.route(true); $('coc-code').focus(); break;
         case 'code-restart': Store.companyLogout(); U.route(true); break;
         case 'demo-fill': $('col-contact').value = '01611000001'; $('col-pw').value = 'demo1234'; break;
@@ -475,6 +540,22 @@ window.LHCompany = (function () {
   }
   function onChange(e) {
     const t = e.target;
+    // a report filter: a broader choice clears the narrower ones under it; a district also picks its division
+    if (t.dataset.rf) {
+      const k = t.dataset.rf;
+      rf[k] = t.value;
+      if (k === 'group') rf.cat = '';
+      if (k === 'div') { rf.zila = ''; rf.area = ''; }
+      if (k === 'zila') {
+        rf.area = '';
+        const x = t.value && lastTree.find((y) => y.zila === t.value);
+        if (x) rf.div = x.div;
+      }
+      U.route(true);
+      const el = $(t.id);
+      if (el) el.focus();
+      return;
+    }
     if (t.id === 'cp-group') { $('cp-cat').innerHTML = catOptions(me(), t.value, ''); $('cp-newcat-f').hidden = true; return; }
     if (t.id === 'cp-cat') { $('cp-newcat-f').hidden = t.value !== '+'; if (t.value === '+') $('cp-newcat').focus(); return; }
     if (t.dataset.bp) { if (t.checked) picked.add(t.dataset.bp); else picked.delete(t.dataset.bp); return; }
@@ -495,6 +576,16 @@ window.LHCompany = (function () {
       let any = false;
       document.querySelectorAll('#bp-list li').forEach((li) => { li.hidden = q ? !li.dataset.name.includes(q) : li.dataset.def !== '1'; any = any || !li.hidden; });
       $('bp-none').hidden = any || !q;
+    }
+    if (t.id === 'rf-q' || t.id === 'rp-q') {
+      const q = t.value.trim().toLowerCase();
+      const prod = t.id === 'rf-q';
+      if (prod) rfQ = q; else rpQ = q;
+      const rows = document.querySelectorAll(prod ? '#rep-prods li' : '.rep-place .co-bars li');
+      let any = false;
+      rows.forEach((li) => { li.hidden = !finds(q, li.dataset.find); any = any || !li.hidden; });
+      const none = $(prod ? 'rf-none' : 'rp-none');
+      if (none) none.hidden = any || !q || !rows.length;
     }
     if (t.id === 'cgf-q') {
       const q = t.value.trim().toLowerCase();
